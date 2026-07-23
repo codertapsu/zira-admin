@@ -1,0 +1,12 @@
+{
+  "projects": {
+    "default": "zira-7439c"
+  },
+  "targets": {
+    "zira-7439c": {
+      "hosting": {
+        "admin": ["zira-7439c-1da07"]
+      }
+    }
+  }
+}

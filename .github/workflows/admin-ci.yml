@@ -1,0 +1,35 @@
+name: admin-ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: admin-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      # Angular CLI 22 requires Node >=22.22.3 or >=24.15.0 — pin 24.
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.18.0
+          cache: npm
+      - name: Use npm 12 (declared toolchain)
+        run: npm install -g npm@12.0.1
+
+      - name: Install dependencies
+        run: npm ci
+
+      # No lint script and no test suite exist in this repo yet — the gate is
+      # the production build (the same command that emits the deploy artifact).
+      - name: Build (production)
+        run: npm run build
