@@ -1,14 +1,15 @@
 import { inject, Injectable } from '@angular/core';
 
-import { map, type Observable } from 'rxjs';
+import { map, switchMap, type Observable } from 'rxjs';
 
 import { ApiService } from '../../core/api/api.service';
 import type { ItemsList } from '../../core/api/models';
-import type {
-  CampaignResponse,
-  CampaignStats,
-  CreateCampaign,
-  UpdateCampaign,
+import {
+  buildDuplicatePayload,
+  type CampaignResponse,
+  type CampaignStats,
+  type CreateCampaign,
+  type UpdateCampaign,
 } from './campaigns.models';
 
 @Injectable({ providedIn: 'root' })
@@ -39,5 +40,10 @@ export class CampaignsService {
 
   public remove(id: string): Observable<void> {
     return this._api.delete(`/admin/campaigns/${id}`);
+  }
+
+  /** Fetches the campaign, then creates a new draft copy of it (see `buildDuplicatePayload`). */
+  public duplicateAsDraft(id: string): Observable<CampaignResponse> {
+    return this.getById(id).pipe(switchMap((source) => this.create(buildDuplicatePayload(source))));
   }
 }

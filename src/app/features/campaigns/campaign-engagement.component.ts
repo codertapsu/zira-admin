@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   DestroyRef,
   inject,
   OnInit,
@@ -11,12 +12,21 @@ import { ActivatedRoute, Router } from '@angular/router';
 
 import { catchError, of } from 'rxjs';
 
+import { type ChartPoint, MiniChartComponent } from '../../core/ui/mini-chart.component';
 import { CampaignsService } from './campaigns.service';
 import type { CampaignStats } from './campaigns.models';
+
+/** Parse a `YYYY-MM-DD` day bucket as UTC (avoids a local-timezone day shift) and format it short. */
+function shortDate(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  const date = new Date(Date.UTC(y ?? 1970, (m ?? 1) - 1, d ?? 1));
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' });
+}
 
 @Component({
   selector: 'app-campaign-engagement',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [MiniChartComponent],
   template: `
     <section class="page">
       <header class="page__head">
@@ -34,16 +44,42 @@ import type { CampaignStats } from './campaigns.models';
       } @else if (stats(); as s) {
         <div class="stat-grid">
           <div class="stat">
+            <span class="stat__value">{{ s.reach }}</span>
+            <span class="stat__label">Reach</span>
+            <span class="stat__sub">Eligible audience size</span>
+          </div>
+          <div class="stat">
             <span class="stat__value">{{ s.totalViews }}</span>
             <span class="stat__label">Views</span>
           </div>
           <div class="stat">
-            <span class="stat__value">{{ s.seenUsers }}</span>
-            <span class="stat__label">Users who saw it</span>
+            <span class="stat__value">{{ seenRatePct() }}%</span>
+            <span class="stat__label">Seen rate</span>
+            <span class="stat__sub">{{ s.seenUsers }} of {{ s.reach }} reached</span>
           </div>
           <div class="stat">
-            <span class="stat__value">{{ s.dismissedUsers }}</span>
-            <span class="stat__label">Users who closed it</span>
+            <span class="stat__value">{{ dismissRatePct() }}%</span>
+            <span class="stat__label">Dismiss rate</span>
+            <span class="stat__sub">{{ s.dismissedUsers }} of {{ s.reach }} reached</span>
+          </div>
+        </div>
+
+        <div class="form-grid">
+          <div class="card" style="padding: 16px; display: flex; flex-direction: column; gap: 8px">
+            <span class="section-title">Daily seen</span>
+            <app-mini-chart
+              type="line"
+              [points]="seenPoints()"
+              ariaLabel="Daily users who saw this campaign"
+            />
+          </div>
+          <div class="card" style="padding: 16px; display: flex; flex-direction: column; gap: 8px">
+            <span class="section-title">Daily dismissed</span>
+            <app-mini-chart
+              type="line"
+              [points]="dismissedPoints()"
+              ariaLabel="Daily users who dismissed this campaign"
+            />
           </div>
         </div>
       }
@@ -60,6 +96,33 @@ export class CampaignEngagementComponent implements OnInit {
   protected readonly stats = signal<CampaignStats | null>(null);
   protected readonly loading = signal<boolean>(false);
   protected readonly error = signal<string | null>(null);
+
+  protected readonly seenRatePct = computed<number>(() => {
+    const s = this.stats();
+    if (!s || !s.reach) {
+      return 0;
+    }
+    return Math.round((s.seenUsers / s.reach) * 100);
+  });
+
+  protected readonly dismissRatePct = computed<number>(() => {
+    const s = this.stats();
+    if (!s || !s.reach) {
+      return 0;
+    }
+    return Math.round((s.dismissedUsers / s.reach) * 100);
+  });
+
+  protected readonly seenPoints = computed<ChartPoint[]>(() =>
+    (this.stats()?.dailySeries ?? []).map((d) => ({ label: shortDate(d.date), value: d.seen })),
+  );
+
+  protected readonly dismissedPoints = computed<ChartPoint[]>(() =>
+    (this.stats()?.dailySeries ?? []).map((d) => ({
+      label: shortDate(d.date),
+      value: d.dismissed,
+    })),
+  );
 
   public ngOnInit(): void {
     this._id = this._route.snapshot.paramMap.get('id') ?? '';

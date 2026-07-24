@@ -11,7 +11,12 @@ export const routes: Routes = [
     component: ShellComponent,
     canActivate: [authGuard],
     children: [
-      { path: '', pathMatch: 'full', redirectTo: 'campaigns' },
+      { path: '', pathMatch: 'full', redirectTo: 'overview' },
+      {
+        path: 'overview',
+        loadChildren: () =>
+          import('./features/overview/overview.routes').then((m) => m.OVERVIEW_ROUTES),
+      },
       {
         path: 'campaigns',
         loadChildren: () =>
@@ -44,6 +49,33 @@ export const routes: Routes = [
         path: 'insights',
         loadChildren: () =>
           import('./features/insights/insights.routes').then((m) => m.INSIGHTS_ROUTES),
+      },
+      {
+        path: 'errors',
+        loadChildren: () => import('./features/errors/errors.routes').then((m) => m.ERROR_ROUTES),
+      },
+      {
+        path: 'deliveries',
+        loadChildren: () =>
+          import('./features/deliveries/deliveries.routes').then((m) => m.DELIVERIES_ROUTES),
+      },
+      {
+        path: 'bots',
+        loadChildren: () => import('./features/bots/bots.routes').then((m) => m.BOT_ROUTES),
+      },
+      {
+        path: 'security',
+        loadChildren: () =>
+          import('./features/security/security.routes').then((m) => m.SECURITY_ROUTES),
+      },
+      {
+        path: 'audit',
+        loadChildren: () => import('./features/audit/audit.routes').then((m) => m.AUDIT_ROUTES),
+      },
+      {
+        path: 'support',
+        loadChildren: () =>
+          import('./features/support/support.routes').then((m) => m.SUPPORT_ROUTES),
       },
     ],
   },

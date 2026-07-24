@@ -12,6 +12,7 @@ import { FormsModule } from '@angular/forms';
 
 import { catchError, of } from 'rxjs';
 
+import { ConfirmService } from '../../core/ui/confirm.service';
 import { NotificationService } from '../../core/ui/notification.service';
 import { SystemSettingsService } from './system-settings.service';
 import type { SystemSettingResponse } from './system-settings.models';
@@ -41,6 +42,65 @@ interface SettingGroup {
       } @else if (settings().length === 0) {
         <div class="state state--col"><p class="state__empty">No settings available.</p></div>
       } @else {
+        @if (killSwitches().length > 0) {
+          <p class="section-title">Kill switches</p>
+          <div class="table-wrap card" style="margin-bottom: 24px">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Setting</th>
+                  <th>Status</th>
+                  <th>Updated</th>
+                  <th class="table__actions-col">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (setting of killSwitches(); track setting.key) {
+                  <tr>
+                    <td>
+                      <div class="table__name">{{ label(setting.key) }}</div>
+                      <div class="table__sub" style="font-family: var(--mono, monospace)">
+                        {{ setting.key }}
+                      </div>
+                      @if (setting.gatesFeatureFlag; as flag) {
+                        <div class="table__sub">gates {{ humanize(flag) }}</div>
+                      }
+                    </td>
+                    <td>
+                      <span
+                        class="badge"
+                        [class.badge--ok]="boolValue(setting)"
+                        [class.badge--muted]="!boolValue(setting)"
+                      >
+                        {{ boolValue(setting) ? 'Enabled' : 'Disabled' }}
+                      </span>
+                    </td>
+                    <td class="muted">{{ formatDate(setting.updatedAt) }}</td>
+                    <td class="table__actions-col">
+                      <button
+                        type="button"
+                        class="btn btn--sm"
+                        [class.btn--danger]="boolValue(setting)"
+                        [class.btn--primary]="!boolValue(setting)"
+                        [disabled]="isSaving(setting.key)"
+                        (click)="onChange(setting, !boolValue(setting))"
+                      >
+                        {{
+                          isSaving(setting.key)
+                            ? 'Saving…'
+                            : boolValue(setting)
+                              ? 'Disable'
+                              : 'Enable'
+                        }}
+                      </button>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+
         @for (group of groups(); track group.category) {
           <p class="section-title">{{ humanize(group.category) }}</p>
           <div
@@ -132,6 +192,7 @@ interface SettingGroup {
 export class SystemSettingsComponent implements OnInit {
   private readonly _service = inject(SystemSettingsService);
   private readonly _notify = inject(NotificationService);
+  private readonly _confirm = inject(ConfirmService);
   private readonly _destroyRef = inject(DestroyRef);
 
   protected readonly settings = signal<SystemSettingResponse[]>([]);
@@ -148,6 +209,19 @@ export class SystemSettingsComponent implements OnInit {
     }
     return [...byCategory.entries()].map(([category, items]) => ({ category, items }));
   });
+
+  /**
+   * Pinned "kill switches": standalone global gates (`admin_login.enabled`,
+   * `campaigns.enabled`, `telegram_group_welcome.enabled`, …) plus every
+   * per-feature `*.enabled` flag and `subscription.visible`. These are
+   * additionally surfaced here — unchanged in the generic category list
+   * below — because flipping any of them broadcasts to every connected
+   * user immediately over SSE, so they deserve a blast-radius confirm and
+   * an at-a-glance status view.
+   */
+  protected readonly killSwitches = computed<SystemSettingResponse[]>(() =>
+    this.settings().filter((setting) => this._isKillSwitch(setting)),
+  );
 
   public ngOnInit(): void {
     this.fetch();
@@ -200,6 +274,59 @@ export class SystemSettingsComponent implements OnInit {
     if (next === previous) {
       return;
     }
+
+    if (this._isKillSwitch(setting) && typeof next === 'boolean') {
+      void this._confirmAndApply(setting, next, previous);
+      return;
+    }
+
+    this._apply(setting, next, previous);
+  }
+
+  /**
+   * Blast-radius gate for global kill switches: every save here broadcasts
+   * `system_settings_updated` to ALL connected users immediately via SSE, so
+   * confirm before applying. `admin_login.enabled` gets a stricter typed
+   * confirm when turned OFF, since that is this console's own login path.
+   */
+  private async _confirmAndApply(
+    setting: SystemSettingResponse,
+    next: boolean,
+    previous: unknown,
+  ): Promise<void> {
+    const displayLabel = this.label(setting.key);
+    const turningOff = next === false;
+
+    if (setting.key === 'admin_login.enabled' && turningOff) {
+      const confirmed = await this._confirm.ask({
+        title: 'Disable admin console login?',
+        message: `This disables "${displayLabel}" for ALL users immediately via SSE broadcast.`,
+        consequence:
+          'This disables THIS console\'s login — recovery is only via the mini app Profile → "Admin console login code" page.',
+        confirmLabel: 'Disable login',
+        danger: true,
+        requirePhrase: 'admin_login',
+      });
+      if (!confirmed) {
+        return;
+      }
+    } else {
+      const confirmed = await this._confirm.ask({
+        title: `${turningOff ? 'Disable' : 'Enable'} "${displayLabel}"?`,
+        message: `This ${turningOff ? 'disables' : 'enables'} "${displayLabel}" for ALL users immediately via SSE broadcast.`,
+        confirmLabel: turningOff ? 'Disable' : 'Enable',
+        danger: turningOff,
+      });
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    this._apply(setting, next, previous);
+  }
+
+  private _apply(setting: SystemSettingResponse, next: unknown, previous: unknown): void {
+    const key = setting.key;
     this._setValue(key, next);
     this._addSaving(key);
     this._service
@@ -261,5 +388,19 @@ export class SystemSettingsComponent implements OnInit {
       copy.delete(key);
       return copy;
     });
+  }
+
+  /**
+   * A "kill switch" is any boolean global gate: the standalone ones
+   * (`admin_login.enabled`, `campaigns.enabled`, `telegram_group_welcome.enabled`,
+   * `telegram_group_autoleave_on_expiry.enabled`) and every per-feature
+   * `*.enabled` flag (`gatesFeatureFlag` set or not), plus `subscription.visible`
+   * which uses a different naming convention but is the same shape of gate.
+   */
+  private _isKillSwitch(setting: SystemSettingResponse): boolean {
+    return (
+      setting.type === 'boolean' &&
+      (setting.key.endsWith('.enabled') || setting.key === 'subscription.visible')
+    );
   }
 }

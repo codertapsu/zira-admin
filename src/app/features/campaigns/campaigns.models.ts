@@ -148,10 +148,21 @@ export interface CampaignListResponse {
   items: CampaignResponse[];
 }
 
+/** One day bucket of engagement, derived server-side from `campaign_views`. */
+export interface CampaignDailyStatPoint {
+  date: string;
+  seen: number;
+  dismissed: number;
+}
+
 export interface CampaignStats {
   totalViews: number;
   seenUsers: number;
   dismissedUsers: number;
+  /** Eligible audience size — active users (audience `all`) or `targetUserIds.length`. */
+  reach: number;
+  /** Ascending by date; the active window or the trailing 30 days when unbounded. */
+  dailySeries: CampaignDailyStatPoint[];
 }
 
 export interface CreateCampaign {
@@ -171,3 +182,41 @@ export interface CreateCampaign {
 }
 
 export type UpdateCampaign = Partial<CreateCampaign>;
+
+/**
+ * Build a `create` payload that duplicates an existing campaign as a new,
+ * unpublished draft — same content/targeting/presentation, `" (Copy)"`
+ * appended to every localized title so it's obviously a copy in the list.
+ */
+export function buildDuplicatePayload(source: CampaignResponse): CreateCampaign {
+  const suffixLocale = (
+    locale: CampaignLocaleContent | undefined,
+  ): CampaignLocaleContent | undefined =>
+    locale ? { ...locale, title: `${locale.title} (Copy)` } : undefined;
+
+  const content: CampaignContent = {};
+  const vi = suffixLocale(source.content.vi);
+  if (vi) {
+    content.vi = vi;
+  }
+  const en = suffixLocale(source.content.en);
+  if (en) {
+    content.en = en;
+  }
+
+  return {
+    kind: source.kind,
+    status: 'draft',
+    content,
+    mediaUrls: [...source.mediaUrls],
+    ctaUrl: source.ctaUrl,
+    audience: source.audience,
+    targetUserIds: [...source.targetUserIds],
+    platforms: [...source.platforms],
+    startsAt: source.startsAt,
+    endsAt: source.endsAt,
+    renotifyPolicy: source.renotifyPolicy,
+    priority: source.priority,
+    presentation: source.presentation,
+  };
+}

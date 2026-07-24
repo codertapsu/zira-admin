@@ -6,6 +6,14 @@ export interface ConfirmOptions {
   readonly confirmLabel?: string;
   readonly cancelLabel?: string;
   readonly danger?: boolean;
+  /**
+   * When set, the confirm button stays disabled until the operator types this
+   * exact phrase (e.g. a username / campaign title / purchase code). Use for
+   * irreversible or financially-sensitive deletes.
+   */
+  readonly requirePhrase?: string;
+  /** Extra red-flagged consequence text shown above the phrase input. */
+  readonly consequence?: string;
 }
 
 interface ConfirmState {

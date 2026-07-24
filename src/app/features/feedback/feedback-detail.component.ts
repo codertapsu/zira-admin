@@ -8,7 +8,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
 import { catchError, of } from 'rxjs';
 
@@ -24,7 +24,7 @@ import {
 @Component({
   selector: 'app-feedback-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule],
+  imports: [FormsModule, RouterLink],
   template: `
     <section class="page">
       <header class="page__head">
@@ -50,7 +50,15 @@ import {
               <div class="kv__key">Source</div>
               <div class="kv__val">{{ humanize(item.source) }}</div>
               <div class="kv__key">Reporter</div>
-              <div class="kv__val">{{ reporter(item) }}</div>
+              <div class="kv__val">
+                @if (item.createdBy?.id) {
+                  <a class="table__link" [routerLink]="['/users', item.createdBy!.id]">{{
+                    reporter(item)
+                  }}</a>
+                } @else {
+                  {{ reporter(item) }}
+                }
+              </div>
               <div class="kv__key">Created</div>
               <div class="kv__val">{{ formatDate(item.createdAt) }}</div>
               <div class="kv__key">Updated</div>

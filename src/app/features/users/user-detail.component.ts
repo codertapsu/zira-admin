@@ -12,11 +12,33 @@ import { ActivatedRoute, Router } from '@angular/router';
 
 import { catchError, of } from 'rxjs';
 
-import { FEATURE_FLAGS, type FeatureFlag } from '../../core/api/models';
+import {
+  FEATURE_FLAGS,
+  type FeatureFlag,
+  type SupportedLanguage,
+  type TimeFormat,
+  type UserTheme,
+} from '../../core/api/models';
 import { ConfirmService } from '../../core/ui/confirm.service';
 import { NotificationService } from '../../core/ui/notification.service';
 import { UsersService } from './users.service';
-import type { UserChangeLog, UserResponse } from './users.models';
+import type {
+  AdminSession,
+  BotConnection,
+  UserChangeLog,
+  UserDataExport,
+  UserResponse,
+} from './users.models';
+
+const TIME_FORMATS: readonly TimeFormat[] = ['24h', '12h'];
+const THEMES: readonly UserTheme[] = ['system', 'light', 'dark'];
+const LANGUAGES: readonly SupportedLanguage[] = ['default', 'en', 'vi', 'ru'];
+
+/** One rendered row for a history entry's field-level diff. */
+interface ChangeEntry {
+  readonly field: string;
+  readonly display: string;
+}
 
 /**
  * Reads the current admin's roles from the bearer JWT so the admin-only role
@@ -43,6 +65,19 @@ function currentAdminCanManageRoles(): boolean {
   } catch {
     return true;
   }
+}
+
+function formatValue(value: unknown): string {
+  if (value === null || value === undefined || value === '') {
+    return '—';
+  }
+  if (typeof value === 'boolean') {
+    return value ? 'Yes' : 'No';
+  }
+  if (typeof value === 'object') {
+    return JSON.stringify(value);
+  }
+  return String(value);
 }
 
 @Component({
@@ -270,6 +305,287 @@ function currentAdminCanManageRoles(): boolean {
             </dl>
           </div>
 
+          <!-- Properties editor -->
+          <div class="card" style="padding: 20px">
+            <p class="section-title">Properties</p>
+            <p class="muted">Edit the user's locale and display preferences.</p>
+            <div class="form-grid" style="margin-top: 12px">
+              <label class="field">
+                <span class="field__label">Timezone</span>
+                <input
+                  class="input"
+                  placeholder="e.g. Asia/Ho_Chi_Minh"
+                  [ngModel]="propTimezone()"
+                  (ngModelChange)="propTimezone.set($event)"
+                />
+              </label>
+              <label class="field">
+                <span class="field__label">Time format</span>
+                <select
+                  class="input"
+                  [ngModel]="propTimeFormat()"
+                  (ngModelChange)="propTimeFormat.set($event)"
+                >
+                  @for (f of timeFormats; track f) {
+                    <option [value]="f">{{ f }}</option>
+                  }
+                </select>
+              </label>
+              <label class="field">
+                <span class="field__label">Theme</span>
+                <select
+                  class="input"
+                  [ngModel]="propTheme()"
+                  (ngModelChange)="propTheme.set($event)"
+                >
+                  @for (t of themes; track t) {
+                    <option [value]="t">{{ humanize(t) }}</option>
+                  }
+                </select>
+              </label>
+              <label class="field">
+                <span class="field__label">Language</span>
+                <select
+                  class="input"
+                  [ngModel]="propLanguage()"
+                  (ngModelChange)="propLanguage.set($event)"
+                >
+                  @for (l of languages; track l) {
+                    <option [value]="l">{{ humanize(l) }}</option>
+                  }
+                </select>
+              </label>
+            </div>
+            <div class="form-actions" style="margin-top: 16px">
+              <button
+                class="btn btn--primary btn--sm"
+                type="button"
+                [disabled]="savingProperties()"
+                (click)="saveProperties(u)"
+              >
+                {{ savingProperties() ? 'Saving…' : 'Save properties' }}
+              </button>
+            </div>
+          </div>
+
+          <!-- Sessions -->
+          <div class="card" style="padding: 20px">
+            <div class="page__head" style="margin-bottom: 4px">
+              <p class="section-title" style="margin: 0">Sessions</p>
+              <button
+                class="btn btn--danger btn--sm"
+                type="button"
+                [disabled]="revokingAll() || sessions().length === 0"
+                (click)="revokeAllSessions(u)"
+              >
+                Sign out everywhere
+              </button>
+            </div>
+            @if (sessionsLoading()) {
+              <div class="state"><span class="spinner"></span></div>
+            } @else if (sessionsError(); as message) {
+              <div class="state state--col">
+                <p class="state__error">{{ message }}</p>
+                <button class="btn btn--primary btn--sm" type="button" (click)="loadSessions(u.id)">
+                  Retry
+                </button>
+              </div>
+            } @else if (sessions().length === 0) {
+              <p class="state__empty">No active sessions.</p>
+            } @else {
+              <div class="table-wrap">
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th>Device</th>
+                      <th>IP</th>
+                      <th>Created</th>
+                      <th>Last used</th>
+                      <th></th>
+                      <th class="table__actions-col">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (s of sessions(); track s.id) {
+                      <tr>
+                        <td>
+                          <div class="table__name">{{ s.deviceId || '—' }}</div>
+                          @if (s.userAgent) {
+                            <div class="table__sub">{{ s.userAgent }}</div>
+                          }
+                        </td>
+                        <td>{{ s.ip || '—' }}</td>
+                        <td>{{ formatDate(s.createdAt) }}</td>
+                        <td>{{ formatDate(s.lastUsedAt) }}</td>
+                        <td>
+                          @if (s.isReused) {
+                            <span class="badge badge--muted" style="color: var(--danger)"
+                              >Reused</span
+                            >
+                          }
+                        </td>
+                        <td class="table__actions-col">
+                          <button
+                            class="btn btn--sm btn--ghost"
+                            type="button"
+                            [disabled]="revokingSessionId() === s.id"
+                            (click)="revokeSession(u, s)"
+                          >
+                            {{ revokingSessionId() === s.id ? 'Revoking…' : 'Revoke' }}
+                          </button>
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+          </div>
+
+          <!-- Telegram bot -->
+          <div class="card" style="padding: 20px">
+            <p class="section-title">Telegram bot</p>
+            @if (telegramLoading()) {
+              <div class="state"><span class="spinner"></span></div>
+            } @else if (telegramError(); as message) {
+              <div class="state state--col">
+                <p class="state__error">{{ message }}</p>
+                <button
+                  class="btn btn--primary btn--sm"
+                  type="button"
+                  (click)="loadTelegramConnection(u.id)"
+                >
+                  Retry
+                </button>
+              </div>
+            } @else {
+              @if (telegramConnection(); as conn) {
+                @if (conn.connected) {
+                  <dl class="kv">
+                    <div>
+                      <dt class="kv__key">Chat</dt>
+                      <dd class="kv__val">{{ conn.chatIdMasked || '—' }}</dd>
+                    </div>
+                    <div>
+                      <dt class="kv__key">Display name</dt>
+                      <dd class="kv__val">{{ conn.displayName || '—' }}</dd>
+                    </div>
+                    <div>
+                      <dt class="kv__key">Connected</dt>
+                      <dd class="kv__val">{{ formatDate(conn.connectedAt) }}</dd>
+                    </div>
+                    <div>
+                      <dt class="kv__key">Last seen</dt>
+                      <dd class="kv__val">{{ formatDate(conn.lastSeenAt) }}</dd>
+                    </div>
+                  </dl>
+                  <div class="form-actions" style="margin-top: 16px">
+                    <button
+                      class="btn btn--danger btn--sm"
+                      type="button"
+                      [disabled]="disconnectingTelegram()"
+                      (click)="disconnectTelegram(u)"
+                    >
+                      {{ disconnectingTelegram() ? 'Disconnecting…' : 'Disconnect' }}
+                    </button>
+                  </div>
+                } @else {
+                  <p class="state__empty">Not connected.</p>
+                }
+              }
+            }
+          </div>
+
+          <!-- Zalo bot -->
+          <div class="card" style="padding: 20px">
+            <p class="section-title">Zalo bot</p>
+            @if (zaloLoading()) {
+              <div class="state"><span class="spinner"></span></div>
+            } @else if (zaloError(); as message) {
+              <div class="state state--col">
+                <p class="state__error">{{ message }}</p>
+                <button
+                  class="btn btn--primary btn--sm"
+                  type="button"
+                  (click)="loadZaloConnection(u.id)"
+                >
+                  Retry
+                </button>
+              </div>
+            } @else if (zaloConnection(); as conn) {
+              @if (conn.connected) {
+                <dl class="kv">
+                  <div>
+                    <dt class="kv__key">Chat</dt>
+                    <dd class="kv__val">{{ conn.chatIdMasked || '—' }}</dd>
+                  </div>
+                  <div>
+                    <dt class="kv__key">Display name</dt>
+                    <dd class="kv__val">{{ conn.displayName || '—' }}</dd>
+                  </div>
+                  <div>
+                    <dt class="kv__key">Connected</dt>
+                    <dd class="kv__val">{{ formatDate(conn.connectedAt) }}</dd>
+                  </div>
+                  <div>
+                    <dt class="kv__key">Last seen</dt>
+                    <dd class="kv__val">{{ formatDate(conn.lastSeenAt) }}</dd>
+                  </div>
+                </dl>
+                <div class="form-actions" style="margin-top: 16px">
+                  <button
+                    class="btn btn--danger btn--sm"
+                    type="button"
+                    [disabled]="disconnectingZalo()"
+                    (click)="disconnectZalo(u)"
+                  >
+                    {{ disconnectingZalo() ? 'Disconnecting…' : 'Disconnect' }}
+                  </button>
+                </div>
+              } @else {
+                <p class="state__empty">Not connected.</p>
+              }
+            }
+          </div>
+
+          <!-- Privacy -->
+          <div class="card" style="padding: 20px">
+            <p class="section-title">Privacy</p>
+            <p class="muted">
+              Deactivating blocks sign-in and preserves all data for later reactivation. The
+              <strong>Delete</strong> action in Status above is a permanent hard delete and cannot
+              be undone.
+            </p>
+            <div class="form-actions" style="margin-top: 12px; justify-content: flex-start">
+              <button
+                class="btn btn--ghost btn--sm"
+                type="button"
+                [disabled]="generatingExport()"
+                (click)="generateExport(u)"
+              >
+                {{ generatingExport() ? 'Generating…' : 'Generate data export' }}
+              </button>
+            </div>
+            @if (exportError(); as message) {
+              <p class="field__error" style="margin-top: 8px">{{ message }}</p>
+            }
+            @if (exportResult(); as result) {
+              <p style="margin: 12px 0 0">
+                <a
+                  class="btn btn--sm btn--ghost"
+                  [href]="result.url"
+                  target="_blank"
+                  rel="noopener"
+                >
+                  Download {{ result.filename }}
+                </a>
+                <span class="muted" style="margin-left: 8px">
+                  Expires {{ formatDate(result.expiresAt) }}
+                </span>
+              </p>
+            }
+          </div>
+
           <!-- Feature flags -->
           <div class="card" style="padding: 20px">
             <p class="section-title">Feature flags</p>
@@ -318,6 +634,7 @@ function currentAdminCanManageRoles(): boolean {
                   <thead>
                     <tr>
                       <th>Action</th>
+                      <th>Changes</th>
                       <th>Actor</th>
                       <th>When</th>
                     </tr>
@@ -326,6 +643,13 @@ function currentAdminCanManageRoles(): boolean {
                     @for (entry of history(); track entry.id) {
                       <tr>
                         <td>{{ humanize(entry.action) }}</td>
+                        <td>
+                          @for (c of changeEntries(entry); track c.field) {
+                            <div class="table__sub">{{ humanize(c.field) }}: {{ c.display }}</div>
+                          } @empty {
+                            —
+                          }
+                        </td>
                         <td>{{ actorName(entry) }}</td>
                         <td>{{ formatDate(entry.createdAt) }}</td>
                       </tr>
@@ -350,6 +674,9 @@ export class UserDetailComponent implements OnInit {
 
   protected readonly allFlags = FEATURE_FLAGS;
   protected readonly canManageRoles = currentAdminCanManageRoles();
+  protected readonly timeFormats = TIME_FORMATS;
+  protected readonly themes = THEMES;
+  protected readonly languages = LANGUAGES;
 
   private _id = '';
   protected readonly user = signal<UserResponse | null>(null);
@@ -363,6 +690,36 @@ export class UserDetailComponent implements OnInit {
   protected readonly history = signal<UserChangeLog[]>([]);
   protected readonly historyLoading = signal<boolean>(false);
   protected readonly historyError = signal<string | null>(null);
+
+  // Properties editor
+  protected readonly propTimezone = signal<string>('');
+  protected readonly propTimeFormat = signal<TimeFormat>('24h');
+  protected readonly propTheme = signal<UserTheme>('system');
+  protected readonly propLanguage = signal<SupportedLanguage>('default');
+  protected readonly savingProperties = signal<boolean>(false);
+
+  // Sessions
+  protected readonly sessions = signal<AdminSession[]>([]);
+  protected readonly sessionsLoading = signal<boolean>(false);
+  protected readonly sessionsError = signal<string | null>(null);
+  protected readonly revokingSessionId = signal<string | null>(null);
+  protected readonly revokingAll = signal<boolean>(false);
+
+  // Bot connections
+  protected readonly telegramConnection = signal<BotConnection | null>(null);
+  protected readonly telegramLoading = signal<boolean>(false);
+  protected readonly telegramError = signal<string | null>(null);
+  protected readonly disconnectingTelegram = signal<boolean>(false);
+
+  protected readonly zaloConnection = signal<BotConnection | null>(null);
+  protected readonly zaloLoading = signal<boolean>(false);
+  protected readonly zaloError = signal<string | null>(null);
+  protected readonly disconnectingZalo = signal<boolean>(false);
+
+  // Privacy / data export
+  protected readonly generatingExport = signal<boolean>(false);
+  protected readonly exportResult = signal<UserDataExport | null>(null);
+  protected readonly exportError = signal<string | null>(null);
 
   public ngOnInit(): void {
     this._id = this._route.snapshot.paramMap.get('id') ?? '';
@@ -396,6 +753,22 @@ export class UserDetailComponent implements OnInit {
     return entry.actorId ?? 'System';
   }
 
+  /** Flattens a history entry's `changes` payload into renderable `from → to` rows. */
+  protected changeEntries(entry: UserChangeLog): ChangeEntry[] {
+    return Object.entries(entry.changes).map(([field, value]) => {
+      if (
+        value !== null &&
+        typeof value === 'object' &&
+        'from' in (value as Record<string, unknown>) &&
+        'to' in (value as Record<string, unknown>)
+      ) {
+        const { from, to } = value as { from: unknown; to: unknown };
+        return { field, display: `${formatValue(from)} → ${formatValue(to)}` };
+      }
+      return { field, display: formatValue(value) };
+    });
+  }
+
   protected hasFlag(flag: FeatureFlag): boolean {
     return this.flags().includes(flag);
   }
@@ -427,6 +800,9 @@ export class UserDetailComponent implements OnInit {
         }
         this._applyUser(user);
         this.loadHistory(user.id);
+        this.loadSessions(user.id);
+        this.loadTelegramConnection(user.id);
+        this.loadZaloConnection(user.id);
       });
   }
 
@@ -485,11 +861,15 @@ export class UserDetailComponent implements OnInit {
     if (this.busy()) {
       return;
     }
+    const phrase = user.username || user.displayName || user.id;
     const confirmed = await this._confirm.ask({
       title: 'Delete user',
       message: 'This permanently deletes the user and cannot be undone.',
+      consequence:
+        'All of the user’s data — projects, tasks, notes, and history — is permanently erased. This cannot be reversed.',
       confirmLabel: 'Delete',
       danger: true,
+      requirePhrase: phrase,
     });
     if (!confirmed) {
       return;
@@ -576,6 +956,236 @@ export class UserDetailComponent implements OnInit {
       });
   }
 
+  protected saveProperties(user: UserResponse): void {
+    if (this.savingProperties()) {
+      return;
+    }
+    this.savingProperties.set(true);
+    this._users
+      .updateProperties(user.id, {
+        timezone: this.propTimezone().trim(),
+        timeFormat: this.propTimeFormat(),
+        theme: this.propTheme(),
+        language: this.propLanguage(),
+      })
+      .pipe(takeUntilDestroyed(this._destroyRef))
+      .subscribe({
+        next: (updated) => {
+          this.savingProperties.set(false);
+          this._applyUser(updated);
+          this._notify.success('Properties updated.');
+          this.loadHistory(user.id);
+        },
+        error: () => {
+          this.savingProperties.set(false);
+          this._notify.error('Could not update properties.');
+        },
+      });
+  }
+
+  protected loadSessions(id: string): void {
+    this.sessionsLoading.set(true);
+    this.sessionsError.set(null);
+    this._users
+      .getSessions(id)
+      .pipe(
+        catchError(() => of(null)),
+        takeUntilDestroyed(this._destroyRef),
+      )
+      .subscribe((sessions) => {
+        this.sessionsLoading.set(false);
+        if (sessions === null) {
+          this.sessionsError.set('Could not load sessions.');
+          return;
+        }
+        this.sessions.set(sessions);
+      });
+  }
+
+  protected async revokeSession(user: UserResponse, session: AdminSession): Promise<void> {
+    if (this.revokingSessionId()) {
+      return;
+    }
+    const confirmed = await this._confirm.ask({
+      title: 'Revoke session',
+      message: `End this session${session.userAgent ? ` (${session.userAgent})` : ''}? The user will be signed out on that device.`,
+      confirmLabel: 'Revoke',
+      danger: true,
+    });
+    if (!confirmed) {
+      return;
+    }
+    this.revokingSessionId.set(session.id);
+    this._users
+      .revokeSession(user.id, session.id)
+      .pipe(takeUntilDestroyed(this._destroyRef))
+      .subscribe({
+        next: () => {
+          this.revokingSessionId.set(null);
+          this.sessions.update((list) => list.filter((s) => s.id !== session.id));
+          this._notify.success('Session revoked.');
+        },
+        error: () => {
+          this.revokingSessionId.set(null);
+          this._notify.error('Could not revoke the session.');
+        },
+      });
+  }
+
+  protected async revokeAllSessions(user: UserResponse): Promise<void> {
+    if (this.revokingAll()) {
+      return;
+    }
+    const confirmed = await this._confirm.ask({
+      title: 'Sign out everywhere',
+      message: 'This immediately revokes every active session for this user, on every device.',
+      consequence:
+        'The user (and any signed-in admin console session of theirs) is signed out immediately and must sign in again.',
+      confirmLabel: 'Sign out everywhere',
+      danger: true,
+      requirePhrase: 'SIGN OUT',
+    });
+    if (!confirmed) {
+      return;
+    }
+    this.revokingAll.set(true);
+    this._users
+      .revokeAllSessions(user.id, 'admin_console_revoke_all')
+      .pipe(takeUntilDestroyed(this._destroyRef))
+      .subscribe({
+        next: () => {
+          this.revokingAll.set(false);
+          this.sessions.set([]);
+          this._notify.success('All sessions revoked.');
+        },
+        error: () => {
+          this.revokingAll.set(false);
+          this._notify.error('Could not revoke all sessions.');
+        },
+      });
+  }
+
+  protected loadTelegramConnection(id: string): void {
+    this.telegramLoading.set(true);
+    this.telegramError.set(null);
+    this._users
+      .getTelegramBotConnection(id)
+      .pipe(
+        catchError(() => of(null)),
+        takeUntilDestroyed(this._destroyRef),
+      )
+      .subscribe((conn) => {
+        this.telegramLoading.set(false);
+        if (conn === null) {
+          this.telegramError.set('Could not load the Telegram connection.');
+          return;
+        }
+        this.telegramConnection.set(conn);
+      });
+  }
+
+  protected async disconnectTelegram(user: UserResponse): Promise<void> {
+    if (this.disconnectingTelegram()) {
+      return;
+    }
+    const confirmed = await this._confirm.ask({
+      title: 'Disconnect Telegram',
+      message: "This clears the user's Telegram bot chat binding. They can reconnect later.",
+      confirmLabel: 'Disconnect',
+      danger: true,
+    });
+    if (!confirmed) {
+      return;
+    }
+    this.disconnectingTelegram.set(true);
+    this._users
+      .disconnectTelegramBot(user.id)
+      .pipe(takeUntilDestroyed(this._destroyRef))
+      .subscribe({
+        next: () => {
+          this.disconnectingTelegram.set(false);
+          this._notify.success('Telegram disconnected.');
+          this.loadTelegramConnection(user.id);
+        },
+        error: () => {
+          this.disconnectingTelegram.set(false);
+          this._notify.error('Could not disconnect Telegram.');
+        },
+      });
+  }
+
+  protected loadZaloConnection(id: string): void {
+    this.zaloLoading.set(true);
+    this.zaloError.set(null);
+    this._users
+      .getZaloBotConnection(id)
+      .pipe(
+        catchError(() => of(null)),
+        takeUntilDestroyed(this._destroyRef),
+      )
+      .subscribe((conn) => {
+        this.zaloLoading.set(false);
+        if (conn === null) {
+          this.zaloError.set('Could not load the Zalo connection.');
+          return;
+        }
+        this.zaloConnection.set(conn);
+      });
+  }
+
+  protected async disconnectZalo(user: UserResponse): Promise<void> {
+    if (this.disconnectingZalo()) {
+      return;
+    }
+    const confirmed = await this._confirm.ask({
+      title: 'Disconnect Zalo',
+      message: "This clears the user's Zalo bot chat binding. They can reconnect later.",
+      confirmLabel: 'Disconnect',
+      danger: true,
+    });
+    if (!confirmed) {
+      return;
+    }
+    this.disconnectingZalo.set(true);
+    this._users
+      .disconnectZaloBot(user.id)
+      .pipe(takeUntilDestroyed(this._destroyRef))
+      .subscribe({
+        next: () => {
+          this.disconnectingZalo.set(false);
+          this._notify.success('Zalo disconnected.');
+          this.loadZaloConnection(user.id);
+        },
+        error: () => {
+          this.disconnectingZalo.set(false);
+          this._notify.error('Could not disconnect Zalo.');
+        },
+      });
+  }
+
+  protected generateExport(user: UserResponse): void {
+    if (this.generatingExport()) {
+      return;
+    }
+    this.generatingExport.set(true);
+    this.exportError.set(null);
+    this._users
+      .generateDataExport(user.id)
+      .pipe(takeUntilDestroyed(this._destroyRef))
+      .subscribe({
+        next: (result) => {
+          this.generatingExport.set(false);
+          this.exportResult.set(result);
+          this._notify.success('Data export generated.');
+        },
+        error: () => {
+          this.generatingExport.set(false);
+          this.exportError.set('Could not generate the data export.');
+          this._notify.error('Could not generate the data export.');
+        },
+      });
+  }
+
   private _refetch(id: string): void {
     this._users
       .getById(id)
@@ -594,5 +1204,9 @@ export class UserDetailComponent implements OnInit {
   private _applyUser(user: UserResponse): void {
     this.user.set(user);
     this.flags.set([...user.enabledFeatureFlags]);
+    this.propTimezone.set(user.timezone);
+    this.propTimeFormat.set(user.timeFormat);
+    this.propTheme.set(user.theme);
+    this.propLanguage.set(user.language);
   }
 }

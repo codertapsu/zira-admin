@@ -84,6 +84,7 @@ export class ShellComponent {
   protected readonly navOpen = signal<boolean>(false);
 
   protected readonly navGroups: readonly NavGroup[] = [
+    { title: 'Home', items: [{ label: 'Overview', path: '/overview' }] },
     { title: 'Engagement', items: [{ label: 'Campaigns', path: '/campaigns' }] },
     {
       title: 'People',
@@ -94,10 +95,26 @@ export class ShellComponent {
     },
     { title: 'Billing', items: [{ label: 'Subscriptions', path: '/subscriptions' }] },
     {
-      title: 'System',
+      title: 'Product',
       items: [
-        { label: 'Settings', path: '/system-settings' },
         { label: 'Insights', path: '/insights' },
+        { label: 'Settings', path: '/system-settings' },
+      ],
+    },
+    {
+      title: 'Operations',
+      items: [
+        { label: 'Errors', path: '/errors' },
+        { label: 'Deliveries', path: '/deliveries' },
+        { label: 'Bots', path: '/bots' },
+        { label: 'Support lookup', path: '/support' },
+      ],
+    },
+    {
+      title: 'Security',
+      items: [
+        { label: 'Security', path: '/security' },
+        { label: 'Audit log', path: '/audit' },
       ],
     },
   ];

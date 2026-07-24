@@ -8,11 +8,14 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 
 import { catchError, of } from 'rxjs';
 
+import { type CsvColumn, downloadCsv } from '../../core/ui/csv.util';
 import { ConfirmService } from '../../core/ui/confirm.service';
 import { NotificationService } from '../../core/ui/notification.service';
+import { fetchAllPages } from './paginate-all.util';
 import { SubscriptionsService } from './subscriptions.service';
 import {
   SUBSCRIPTION_PURCHASE_REQUEST_STATUSES,
@@ -20,11 +23,27 @@ import {
 } from './subscriptions.models';
 
 const PAGE_LIMIT = 20;
+const PENDING_COUNT_CAP_PAGES = 10;
+
+const CSV_COLUMNS: readonly CsvColumn<SubscriptionPurchaseRequestResponse>[] = [
+  { key: 'requester', label: 'Requester', value: (r) => r.requester.displayName },
+  { key: 'plan', label: 'Plan', value: (r) => r.plan.displayName },
+  { key: 'purchaseCode', label: 'Purchase code', value: (r) => r.purchaseCode },
+  { key: 'status', label: 'Status', value: (r) => r.status },
+  { key: 'requestedAmount', label: 'Requested amount', value: (r) => r.requestedAmount },
+  { key: 'amountReceived', label: 'Amount received', value: (r) => r.amountReceived ?? '' },
+  {
+    key: 'providerReference',
+    label: 'Provider reference',
+    value: (r) => r.providerReference ?? '',
+  },
+  { key: 'createdAt', label: 'Created at', value: (r) => r.createdAt },
+];
 
 @Component({
   selector: 'app-requests-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule],
+  imports: [FormsModule, RouterLink],
   template: `
     <div class="page">
       <div class="toolbar">
@@ -51,6 +70,18 @@ const PAGE_LIMIT = 20;
           }
         </select>
         <button class="btn btn--sm" type="button" (click)="fetch()">Search</button>
+        @if (pendingCount(); as count) {
+          <span class="badge badge--warn">{{ count }} pending</span>
+        }
+        <div class="toolbar__spacer"></div>
+        <button
+          class="btn btn--ghost btn--sm"
+          type="button"
+          [disabled]="requests().length === 0"
+          (click)="exportCsv()"
+        >
+          Export CSV
+        </button>
       </div>
 
       @if (loading()) {
@@ -79,13 +110,25 @@ const PAGE_LIMIT = 20;
               @for (req of requests(); track req.id) {
                 <tr>
                   <td>
-                    <div class="table__name">{{ req.requester.displayName }}</div>
+                    <a class="table__link table__name" [routerLink]="['/users', req.requester.id]">
+                      {{ req.requester.displayName }}
+                    </a>
                     <div class="table__sub">
                       {{ req.requester.email || req.requester.username || req.requester.id }}
                     </div>
                   </td>
                   <td>{{ req.plan.displayName }}</td>
-                  <td class="mono">{{ req.purchaseCode }}</td>
+                  <td class="mono">
+                    {{ req.purchaseCode }}
+                    <button
+                      class="btn btn--ghost btn--sm"
+                      type="button"
+                      style="min-height: 24px; padding: 0 8px"
+                      (click)="copy(req.purchaseCode)"
+                    >
+                      Copy
+                    </button>
+                  </td>
                   <td>{{ req.requestedAmount.toLocaleString() }} {{ req.requestedCurrency }}</td>
                   <td>
                     <span class="badge badge--{{ badgeClass(req.status) }}">
@@ -120,14 +163,33 @@ const PAGE_LIMIT = 20;
                           <span class="kv__key">Provider</span>
                           <span class="kv__val">{{ req.provider }}</span>
                           <span class="kv__key">Provider reference</span>
-                          <span class="kv__val">{{ req.providerReference || '—' }}</span>
+                          <span class="kv__val">
+                            {{ req.providerReference || '—' }}
+                            @if (req.providerReference) {
+                              <button
+                                class="btn btn--ghost btn--sm"
+                                type="button"
+                                style="min-height: 24px; padding: 0 8px"
+                                (click)="copy(req.providerReference!)"
+                              >
+                                Copy
+                              </button>
+                            }
+                          </span>
                           <span class="kv__key">Amount received</span>
                           <span class="kv__val">
-                            {{
-                              req.amountReceived !== null
-                                ? req.amountReceived.toLocaleString()
-                                : '—'
-                            }}
+                            @if (isAmountMismatch(req)) {
+                              <span class="badge badge--warn">
+                                {{ req.amountReceived?.toLocaleString() }} (requested
+                                {{ req.requestedAmount.toLocaleString() }})
+                              </span>
+                            } @else {
+                              {{
+                                req.amountReceived !== null
+                                  ? req.amountReceived.toLocaleString()
+                                  : '—'
+                              }}
+                            }
                           </span>
                           <span class="kv__key">Promo code</span>
                           <span class="kv__val">{{ req.promoCode || '—' }}</span>
@@ -277,8 +339,11 @@ export class RequestsListComponent implements OnInit {
   protected readonly acceptNote = signal<string>('');
   protected readonly rejectNote = signal<string>('');
 
+  protected readonly pendingCount = signal<number | null>(null);
+
   public ngOnInit(): void {
     this.fetch();
+    this._refreshPendingCount();
   }
 
   protected humanize(value: string): string {
@@ -297,6 +362,23 @@ export class RequestsListComponent implements OnInit {
       return '—';
     }
     return new Date(iso).toLocaleString();
+  }
+
+  protected isAmountMismatch(req: SubscriptionPurchaseRequestResponse): boolean {
+    return req.amountReceived !== null && req.amountReceived !== req.requestedAmount;
+  }
+
+  protected exportCsv(): void {
+    downloadCsv('purchase-requests.csv', CSV_COLUMNS, this.requests());
+  }
+
+  protected async copy(text: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(text);
+      this._notify.success('Copied to clipboard.');
+    } catch {
+      this._notify.error('Could not copy to clipboard.');
+    }
   }
 
   protected toggle(req: SubscriptionPurchaseRequestResponse): void {
@@ -339,6 +421,7 @@ export class RequestsListComponent implements OnInit {
           this.deciding.set(false);
           this._replace(updated);
           this._notify.success('Request accepted.');
+          this._refreshPendingCount();
         },
         error: () => {
           this.deciding.set(false);
@@ -360,6 +443,7 @@ export class RequestsListComponent implements OnInit {
           this.deciding.set(false);
           this._replace(updated);
           this._notify.success('Request rejected.');
+          this._refreshPendingCount();
         },
         error: () => {
           this.deciding.set(false);
@@ -374,9 +458,12 @@ export class RequestsListComponent implements OnInit {
     }
     const confirmed = await this._confirm.ask({
       title: 'Delete request',
-      message: `Delete purchase request ${req.purchaseCode}? This cannot be undone.`,
+      message: `Delete purchase request ${req.purchaseCode}?`,
       confirmLabel: 'Delete',
       danger: true,
+      consequence:
+        'This permanently deletes the payment record; the issued subscription is NOT reverted.',
+      requirePhrase: req.purchaseCode,
     });
     if (!confirmed) {
       return;
@@ -393,6 +480,7 @@ export class RequestsListComponent implements OnInit {
           }
           this.deletingId.set(null);
           this._notify.success('Request deleted.');
+          this._refreshPendingCount();
         },
         error: () => {
           this.deletingId.set(null);
@@ -454,6 +542,22 @@ export class RequestsListComponent implements OnInit {
         this.requests.update((list) => [...list, ...page.items]);
         this._cursor.set(page.nextCursor);
         this.hasMore.set(page.hasMore);
+      });
+  }
+
+  private _refreshPendingCount(): void {
+    fetchAllPages<SubscriptionPurchaseRequestResponse>(
+      (cursor) => this._service.listRequests({ status: 'pending', limit: 100, cursor }),
+      PENDING_COUNT_CAP_PAGES,
+    )
+      .pipe(
+        catchError(() => of(null)),
+        takeUntilDestroyed(this._destroyRef),
+      )
+      .subscribe((items) => {
+        if (items !== null) {
+          this.pendingCount.set(items.length);
+        }
       });
   }
 

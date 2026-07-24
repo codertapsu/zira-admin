@@ -4,10 +4,13 @@ import { type Observable } from 'rxjs';
 
 import { ApiService } from '../../core/api/api.service';
 import type {
+  ActivationCohorts,
   ActivationFunnel,
   FeatureAdoption,
   NotificationMetrics,
   ProductivityTrend,
+  RetentionMatrix,
+  UserFacts,
 } from './insights.models';
 
 /**
@@ -59,5 +62,17 @@ export class InsightsService {
 
   public notificationMetrics(): Observable<NotificationMetrics> {
     return this._api.get<NotificationMetrics>('/notifications/admin/metrics');
+  }
+
+  public activationCohorts(weeks?: number, withinDays?: number): Observable<ActivationCohorts> {
+    return this._api.get<ActivationCohorts>('/insights/activation-cohorts', { weeks, withinDays });
+  }
+
+  public retention(weeks?: number): Observable<RetentionMatrix> {
+    return this._api.get<RetentionMatrix>('/insights/retention', { weeks });
+  }
+
+  public userFacts(userId: string): Observable<UserFacts> {
+    return this._api.get<UserFacts>(`/insights/user-facts/${userId}`);
   }
 }

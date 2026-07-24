@@ -13,8 +13,11 @@ import { ActivatedRoute, Router } from '@angular/router';
 
 import { catchError, of } from 'rxjs';
 
+import type { UserSummary } from '../../core/api/models';
 import { ImageInputComponent } from '../../core/ui/image-input.component';
 import { NotificationService } from '../../core/ui/notification.service';
+import { UsersService } from '../users/users.service';
+import { CampaignAudiencePickerComponent } from './campaign-audience-picker.component';
 import { CampaignPreviewComponent } from './campaign-preview.component';
 import { CampaignsService } from './campaigns.service';
 import { SectionSpacingComponent } from './section-spacing.component';
@@ -64,13 +67,6 @@ function localInputToIso(value: string): string | null {
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
-function toLines(text: string): string[] {
-  return text
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
-}
-
 interface SectionRow {
   key: CampaignSectionKey;
   label: string;
@@ -79,7 +75,13 @@ interface SectionRow {
 @Component({
   selector: 'app-campaign-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, ImageInputComponent, CampaignPreviewComponent, SectionSpacingComponent],
+  imports: [
+    FormsModule,
+    ImageInputComponent,
+    CampaignPreviewComponent,
+    SectionSpacingComponent,
+    CampaignAudiencePickerComponent,
+  ],
   template: `
     <section class="page" style="max-width: none">
       <header class="page__head">
@@ -306,15 +308,13 @@ interface SectionRow {
             </div>
 
             @if (audience() === 'specific_users') {
-              <label class="field">
-                <span class="field__label">Target user IDs</span>
-                <textarea
-                  class="input"
-                  placeholder="One user id per line"
-                  [ngModel]="targetUserIdsText()"
-                  (ngModelChange)="targetUserIdsText.set($event)"
-                ></textarea>
-              </label>
+              <div class="field">
+                <span class="field__label">Target users</span>
+                <app-campaign-audience-picker
+                  [selected]="audienceUsers()"
+                  (selectedChange)="audienceUsers.set($event)"
+                />
+              </div>
             }
 
             <fieldset class="field" style="border: 0; padding: 0; margin: 0">
@@ -494,6 +494,7 @@ interface SectionRow {
 })
 export class CampaignFormComponent implements OnInit {
   private readonly _service = inject(CampaignsService);
+  private readonly _usersService = inject(UsersService);
   private readonly _route = inject(ActivatedRoute);
   private readonly _router = inject(Router);
   private readonly _notify = inject(NotificationService);
@@ -529,7 +530,7 @@ export class CampaignFormComponent implements OnInit {
   protected readonly primaryImage = signal<string>('');
   protected readonly ctaUrl = signal<string>('');
   protected readonly audience = signal<CampaignAudience>('all');
-  protected readonly targetUserIdsText = signal<string>('');
+  protected readonly audienceUsers = signal<UserSummary[]>([]);
   protected readonly platforms = signal<CampaignPlatform[]>([]);
   protected readonly startsAt = signal<string>('');
   protected readonly endsAt = signal<string>('');
@@ -684,7 +685,10 @@ export class CampaignFormComponent implements OnInit {
         this.primaryImage.set(campaign.mediaUrls[0] ?? '');
         this.ctaUrl.set(campaign.ctaUrl ?? '');
         this.audience.set(campaign.audience);
-        this.targetUserIdsText.set(campaign.targetUserIds.join('\n'));
+        this.audienceUsers.set([]);
+        if (campaign.audience === 'specific_users' && campaign.targetUserIds.length > 0) {
+          this._hydrateAudienceUsers(campaign.targetUserIds);
+        }
         this.platforms.set([...campaign.platforms]);
         this.startsAt.set(isoToLocalInput(campaign.startsAt));
         this.endsAt.set(isoToLocalInput(campaign.endsAt));
@@ -705,6 +709,39 @@ export class CampaignFormComponent implements OnInit {
           actions: { ...p.sections.actions },
         });
         this.sectionOrder.set([...p.sectionOrder]);
+      });
+  }
+
+  /**
+   * Resolve saved `targetUserIds` back into displayable summaries so the
+   * audience picker shows names, not raw ids. An id that no longer resolves
+   * (e.g. a deleted account) still renders as a chip — keyed by its own id —
+   * so it isn't silently dropped from the audience on the next save.
+   */
+  private _hydrateAudienceUsers(ids: string[]): void {
+    const limit = Math.min(Math.max(ids.length, 1), 200);
+    this._usersService
+      .searchSummaries({ ids }, { limit })
+      .pipe(
+        catchError(() => of(null)),
+        takeUntilDestroyed(this._destroyRef),
+      )
+      .subscribe((res) => {
+        const found = res?.items ?? [];
+        const foundIds = new Set(found.map((u) => u.id));
+        const missing = ids.filter((id) => !foundIds.has(id));
+        this.audienceUsers.set([
+          ...found,
+          ...missing.map((id) => ({
+            id,
+            displayName: id,
+            firstName: '',
+            lastName: '',
+            email: null,
+            username: null,
+            isActive: true,
+          })),
+        ]);
       });
   }
 
@@ -750,8 +787,8 @@ export class CampaignFormComponent implements OnInit {
     if (icon && !IMAGE_URL_PATTERN.test(icon)) {
       return 'The top icon must be an absolute http(s) URL (or upload a file).';
     }
-    if (this.audience() === 'specific_users' && toLines(this.targetUserIdsText()).length === 0) {
-      return 'Add at least one target user id, or choose “All”.';
+    if (this.audience() === 'specific_users' && this.audienceUsers().length === 0) {
+      return 'Add at least one target user, or choose “All”.';
     }
     const priority = Number(this.priority());
     if (!Number.isFinite(priority) || priority < 0 || priority > 1000) {
@@ -790,7 +827,8 @@ export class CampaignFormComponent implements OnInit {
       mediaUrls: image ? [image] : [],
       ctaUrl: this.ctaUrl().trim() || null,
       audience: this.audience(),
-      targetUserIds: this.audience() === 'specific_users' ? toLines(this.targetUserIdsText()) : [],
+      targetUserIds:
+        this.audience() === 'specific_users' ? this.audienceUsers().map((u) => u.id) : [],
       platforms: this.platforms(),
       startsAt: localInputToIso(this.startsAt()),
       endsAt: localInputToIso(this.endsAt()),

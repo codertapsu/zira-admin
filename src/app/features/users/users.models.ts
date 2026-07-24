@@ -93,6 +93,39 @@ export interface UserChangeLog {
   actorId: string | null;
   actor: UserSummary | null;
   action: UserChangeAction;
+  /** Scalar updates: `{ field: { from, to } }`. Role changes: `{ role }`. Lifecycle actions: `{}`. */
   changes: Record<string, unknown>;
   createdAt: string;
+}
+
+/** Safe projection of a refresh-token row (`GET/DELETE /admin/users/:id/sessions*`). */
+export interface AdminSession {
+  id: string;
+  deviceId: string | null;
+  ip: string | null;
+  userAgent: string | null;
+  createdAt: string;
+  lastUsedAt: string | null;
+  expiresAt: string;
+  familyId: string;
+  isReused: boolean;
+}
+
+/** Shared shape of the Telegram + Zalo bot connection responses. */
+export interface BotConnection {
+  id: string | null;
+  /** Partially masked chat identifier (first 4 chars visible) — display only. */
+  chatIdMasked: string | null;
+  displayName: string | null;
+  connectedAt: string | null;
+  lastSeenAt: string | null;
+  connected: boolean;
+}
+
+/** `POST /admin/users/:id/data-export` result — a one-time presigned download link. */
+export interface UserDataExport {
+  url: string;
+  filename: string;
+  contentType: string;
+  expiresAt: string;
 }

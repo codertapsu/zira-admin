@@ -6,6 +6,7 @@ import { ApiService } from '../../core/api/api.service';
 import type { CursorPage, ItemsList } from '../../core/api/models';
 import type {
   AcceptPurchaseRequestDto,
+  AdminUserSubscriptionResponse,
   CreatePromoCodeDto,
   CreateSubscriptionPlanDto,
   PromoCodeResponse,
@@ -14,6 +15,7 @@ import type {
   SubscriptionPurchaseRequestResponse,
   UpdatePromoCodeDto,
   UpdateSubscriptionPlanDto,
+  UserSubscriptionListQuery,
 } from './subscriptions.models';
 
 export interface RequestListQuery {
@@ -124,5 +126,21 @@ export class SubscriptionsService {
 
   public removePromoCode(id: string): Observable<void> {
     return this._api.delete(`/admin/subscription-promo-codes/${id}`);
+  }
+
+  /* ------------------------------------------------------ user subscriptions */
+
+  public listUserSubscriptions(
+    query: UserSubscriptionListQuery,
+  ): Observable<CursorPage<AdminUserSubscriptionResponse>> {
+    return this._api.get<CursorPage<AdminUserSubscriptionResponse>>('/admin/user-subscriptions', {
+      status: query.status,
+      planCode: query.planCode,
+      expiresBefore: query.expiresBefore,
+      expiresAfter: query.expiresAfter,
+      search: query.search,
+      limit: query.limit,
+      cursor: query.cursor,
+    });
   }
 }

@@ -39,6 +39,20 @@ export const SUBSCRIPTION_ROUTES: Routes = [
         loadComponent: () =>
           import('./promo-code-form.component').then((m) => m.PromoCodeFormComponent),
       },
+      {
+        path: 'subscribers',
+        loadComponent: () =>
+          import('./subscribers-list.component').then((m) => m.SubscribersListComponent),
+      },
+      {
+        path: 'revenue',
+        loadComponent: () => import('./revenue.component').then((m) => m.RevenueComponent),
+      },
+      {
+        path: 'decisions',
+        loadComponent: () =>
+          import('./decisions-list.component').then((m) => m.DecisionsListComponent),
+      },
     ],
   },
 ];

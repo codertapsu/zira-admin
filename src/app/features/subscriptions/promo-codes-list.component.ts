@@ -14,8 +14,21 @@ import { catchError, of } from 'rxjs';
 
 import { ConfirmService } from '../../core/ui/confirm.service';
 import { NotificationService } from '../../core/ui/notification.service';
+import { fetchAllPages } from './paginate-all.util';
 import { SubscriptionsService } from './subscriptions.service';
-import { PLAN_STATUS_FILTERS, type PromoCodeResponse } from './subscriptions.models';
+import {
+  PLAN_STATUS_FILTERS,
+  type PromoCodeResponse,
+  type SubscriptionPurchaseRequestResponse,
+} from './subscriptions.models';
+
+interface PromoCodeStat {
+  readonly requests: number;
+  readonly accepted: number;
+  readonly revenue: number;
+}
+
+const EMPTY_STAT: PromoCodeStat = { requests: 0, accepted: 0, revenue: 0 };
 
 @Component({
   selector: 'app-promo-codes-list',
@@ -69,6 +82,9 @@ import { PLAN_STATUS_FILTERS, type PromoCodeResponse } from './subscriptions.mod
                 <th>Valid from</th>
                 <th>Valid until</th>
                 <th>Status</th>
+                <th>Requests</th>
+                <th>Accepted</th>
+                <th>Revenue</th>
                 <th class="table__actions-col">Actions</th>
               </tr>
             </thead>
@@ -86,6 +102,9 @@ import { PLAN_STATUS_FILTERS, type PromoCodeResponse } from './subscriptions.mod
                       {{ code.isActive ? 'Active' : 'Inactive' }}
                     </span>
                   </td>
+                  <td>{{ statsLoading() ? '…' : statFor(code.code).requests }}</td>
+                  <td>{{ statsLoading() ? '…' : statFor(code.code).accepted }}</td>
+                  <td>{{ statsLoading() ? '…' : statFor(code.code).revenue.toLocaleString() }}</td>
                   <td class="table__actions-col">
                     <button class="btn btn--sm btn--ghost" type="button" (click)="edit(code)">
                       Edit
@@ -124,8 +143,16 @@ export class PromoCodesListComponent implements OnInit {
   protected readonly error = signal<string | null>(null);
   protected readonly deletingId = signal<string | null>(null);
 
+  private readonly _requestsByCode = signal<Map<string, PromoCodeStat>>(new Map());
+  protected readonly statsLoading = signal<boolean>(false);
+
+  protected statFor(code: string): PromoCodeStat {
+    return this._requestsByCode().get(code.toUpperCase()) ?? EMPTY_STAT;
+  }
+
   public ngOnInit(): void {
     this.fetch();
+    this._loadStats();
   }
 
   protected humanize(value: string): string {
@@ -155,9 +182,12 @@ export class PromoCodesListComponent implements OnInit {
     }
     const confirmed = await this._confirm.ask({
       title: 'Delete promo code',
-      message: `Delete “${code.code}”? This cannot be undone.`,
+      message: `Delete “${code.code}”?`,
       confirmLabel: 'Delete',
       danger: true,
+      consequence:
+        'Past purchase requests keep the historical code; it can no longer be applied to new purchases.',
+      requirePhrase: code.code,
     });
     if (!confirmed) {
       return;
@@ -195,6 +225,43 @@ export class PromoCodesListComponent implements OnInit {
           return;
         }
         this.codes.set(data);
+      });
+  }
+
+  /**
+   * Per-code performance stats, computed client-side from purchase requests
+   * (there's no aggregate backend endpoint): requests carrying the code,
+   * how many were accepted, and the accepted revenue (amountReceived).
+   */
+  private _loadStats(): void {
+    this.statsLoading.set(true);
+    fetchAllPages<SubscriptionPurchaseRequestResponse>((cursor) =>
+      this._service.listRequests({ limit: 100, cursor }),
+    )
+      .pipe(
+        catchError(() => of(null)),
+        takeUntilDestroyed(this._destroyRef),
+      )
+      .subscribe((requests) => {
+        this.statsLoading.set(false);
+        if (requests === null) {
+          return;
+        }
+        const byCode = new Map<string, PromoCodeStat>();
+        for (const req of requests) {
+          if (!req.promoCode) {
+            continue;
+          }
+          const key = req.promoCode.toUpperCase();
+          const prev = byCode.get(key) ?? EMPTY_STAT;
+          const accepted = req.status === 'accepted';
+          byCode.set(key, {
+            requests: prev.requests + 1,
+            accepted: prev.accepted + (accepted ? 1 : 0),
+            revenue: prev.revenue + (accepted ? (req.amountReceived ?? 0) : 0),
+          });
+        }
+        this._requestsByCode.set(byCode);
       });
   }
 }

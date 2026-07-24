@@ -157,9 +157,12 @@ export class PlansListComponent implements OnInit {
     }
     const confirmed = await this._confirm.ask({
       title: 'Delete plan',
-      message: `Delete “${plan.displayName}”? This cannot be undone.`,
+      message: `Delete “${plan.displayName}”?`,
       confirmLabel: 'Delete',
       danger: true,
+      consequence:
+        'Subscribers already on this plan keep the stale plan code; new purchases can no longer select it.',
+      requirePhrase: plan.planCode,
     });
     if (!confirmed) {
       return;

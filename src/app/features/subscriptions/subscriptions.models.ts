@@ -101,3 +101,40 @@ export type UpdatePromoCodeDto = Partial<Omit<CreatePromoCodeDto, 'code'>>;
 
 export type PlanStatusFilter = 'active' | 'inactive';
 export const PLAN_STATUS_FILTERS: readonly PlanStatusFilter[] = ['active', 'inactive'];
+
+/* ---------------------------------------------------- user subscriptions */
+
+export type UserSubscriptionStatus = 'active' | 'expired' | 'cancelled' | 'replaced';
+
+export const USER_SUBSCRIPTION_STATUSES: readonly UserSubscriptionStatus[] = [
+  'active',
+  'expired',
+  'cancelled',
+  'replaced',
+];
+
+/** Mirrors `AdminUserSubscriptionResponse` (admin `/admin/user-subscriptions`). */
+export interface AdminUserSubscriptionResponse {
+  id: string;
+  user: UserSummary;
+  planCode: string;
+  plan: SubscriptionPlanResponse | null;
+  status: UserSubscriptionStatus;
+  startedAt: string;
+  endedAt: string | null;
+  sourcePurchaseRequestId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UserSubscriptionListQuery {
+  status?: string;
+  planCode?: string;
+  /** ISO-8601. Rows whose `endedAt` is at or before this instant. */
+  expiresBefore?: string;
+  /** ISO-8601. Rows whose `endedAt` is at or after this instant. */
+  expiresAfter?: string;
+  search?: string;
+  limit?: number;
+  cursor?: string;
+}
