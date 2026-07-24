@@ -77,6 +77,21 @@ export const routes: Routes = [
         loadChildren: () =>
           import('./features/support/support.routes').then((m) => m.SUPPORT_ROUTES),
       },
+      {
+        path: 'storage',
+        loadChildren: () =>
+          import('./features/storage/storage.routes').then((m) => m.STORAGE_ROUTES),
+      },
+      {
+        path: 'rollouts',
+        loadChildren: () =>
+          import('./features/rollouts/rollouts.routes').then((m) => m.ROLLOUT_ROUTES),
+      },
+      {
+        path: 'exports',
+        loadChildren: () =>
+          import('./features/exports/exports.routes').then((m) => m.EXPORT_ROUTES),
+      },
     ],
   },
   { path: '**', redirectTo: '' },

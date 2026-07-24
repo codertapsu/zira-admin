@@ -98,6 +98,7 @@ export class ShellComponent {
       title: 'Product',
       items: [
         { label: 'Insights', path: '/insights' },
+        { label: 'Rollouts', path: '/rollouts' },
         { label: 'Settings', path: '/system-settings' },
       ],
     },
@@ -107,6 +108,7 @@ export class ShellComponent {
         { label: 'Errors', path: '/errors' },
         { label: 'Deliveries', path: '/deliveries' },
         { label: 'Bots', path: '/bots' },
+        { label: 'Storage', path: '/storage' },
         { label: 'Support lookup', path: '/support' },
       ],
     },
@@ -114,6 +116,7 @@ export class ShellComponent {
       title: 'Security',
       items: [
         { label: 'Security', path: '/security' },
+        { label: 'Exports', path: '/exports' },
         { label: 'Audit log', path: '/audit' },
       ],
     },

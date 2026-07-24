@@ -554,7 +554,9 @@ function formatValue(value: unknown): string {
             <p class="muted">
               Deactivating blocks sign-in and preserves all data for later reactivation. The
               <strong>Delete</strong> action in Status above is a permanent hard delete and cannot
-              be undone.
+              be undone. Note: hard delete does not fully purge personally-identifiable data from
+              every table — a complete purge still requires the server-side
+              <code>scripts/delete-user.ts</code> follow-up. Prefer deactivation.
             </p>
             <div class="form-actions" style="margin-top: 12px; justify-content: flex-start">
               <button
