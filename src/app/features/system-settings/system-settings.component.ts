@@ -124,11 +124,14 @@ interface SettingGroup {
                 @switch (setting.type) {
                   @case ('boolean') {
                     <label class="chip" style="cursor: pointer; width: fit-content">
+                      <!-- preventDefault so the DOM only moves when the value is
+                           actually committed on confirm — otherwise cancelling a
+                           blast-radius confirm leaves the box stuck flipped. -->
                       <input
                         type="checkbox"
-                        [ngModel]="boolValue(setting)"
+                        [checked]="boolValue(setting)"
                         [disabled]="isSaving(setting.key)"
-                        (ngModelChange)="onChange(setting, $event)"
+                        (click)="$event.preventDefault(); onChange(setting, !boolValue(setting))"
                       />
                       {{ boolValue(setting) ? 'Enabled' : 'Disabled' }}
                     </label>
