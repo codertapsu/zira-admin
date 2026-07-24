@@ -41,6 +41,16 @@ export class ApiService {
     return this._http.delete(this._url(path)).pipe(map(() => undefined));
   }
 
+  /** Multipart upload — sends the file under the `file` field. */
+  public upload<T>(path: string, file: File): Observable<T> {
+    const form = new FormData();
+    form.append('file', file);
+
+    return this._http
+      .post<ApiEnvelope<T>>(this._url(path), form)
+      .pipe(map((envelope) => envelope.data));
+  }
+
   private _url(path: string): string {
     return `${this._base}${path}`;
   }

@@ -780,3 +780,254 @@ textarea.input {
   font-size: 13px;
   color: var(--text-3);
 }
+
+/* ------------------------------------------------------------- image input */
+
+.image-input {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.image-input__row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+
+  .input {
+    flex: 1;
+    min-width: 0;
+  }
+
+  label.btn {
+    position: relative;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .btn--busy {
+    opacity: 0.7;
+    pointer-events: none;
+  }
+}
+
+.image-input__thumb {
+  max-width: 160px;
+  max-height: 96px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  object-fit: cover;
+}
+
+/* ------------------------------------------------ section spacing editor */
+
+/* Lives in the preview pane: pick a section (radio), tune it with sliders. */
+.spacing-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+}
+
+/* Let the section radio group wrap instead of scrolling in the narrow pane. */
+.tabs--wrap {
+  flex-wrap: wrap;
+  overflow-x: visible;
+}
+
+.reorder-row {
+  display: flex;
+  gap: 8px;
+}
+
+.spacing-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.slider-row {
+  display: grid;
+  grid-template-columns: 96px 1fr 34px;
+  align-items: center;
+  gap: 10px;
+}
+
+.slider-row__label {
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.slider-row__value {
+  font-size: 12px;
+  color: var(--text);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.slider {
+  width: 100%;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
+/* --------------------------------------------------- campaign preview pane */
+
+.preview-pane {
+  position: sticky;
+  top: 88px;
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.preview-stage {
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+
+.cp-dialog {
+  width: min(340px, 100%);
+  border-radius: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+  color: var(--text);
+  text-align: left;
+
+  &__hero {
+    display: block;
+    width: 100%;
+    max-height: 180px;
+    object-fit: cover;
+    background: var(--surface-2);
+  }
+
+  // No container padding: every gutter and gap is owned by the child sections.
+  &__inner {
+    display: flex;
+    flex-direction: column;
+  }
+
+  &__icon {
+    display: flex;
+  }
+
+  &__icon-img {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    object-fit: cover;
+  }
+
+  // Wrapper carries the author's padding; the element fills what's left.
+  &__media {
+    display: block;
+  }
+
+  &__media-el {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    border-radius: 12px;
+  }
+
+  &__title {
+    font-size: 19px;
+    font-weight: 600;
+    margin: 0;
+  }
+
+  &__body {
+    font-size: 14px;
+    line-height: 1.5;
+    margin: 0;
+    color: var(--text-2);
+    word-break: break-word;
+
+    img,
+    video {
+      max-width: 100%;
+      height: auto;
+      border-radius: 8px;
+    }
+    a {
+      color: var(--primary);
+      text-decoration: underline;
+    }
+    p {
+      margin: 0 0 8px;
+    }
+    ul,
+    ol {
+      margin: 0 0 8px;
+      padding-left: 20px;
+    }
+    h1,
+    h2,
+    h3,
+    h4 {
+      margin: 12px 0 6px;
+      color: var(--text);
+      line-height: 1.3;
+    }
+    > :last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  &__actions {
+    display: flex;
+    gap: 12px;
+  }
+
+  &__btn {
+    flex: 1;
+    min-height: 42px;
+    padding: 10px 16px;
+    border-radius: 999px;
+    font-size: 14px;
+    font-weight: 500;
+    border: none;
+
+    &--ghost {
+      background: transparent;
+      color: var(--text-2);
+      border: 1px solid var(--border);
+    }
+    &--primary {
+      background: var(--primary);
+      color: var(--primary-contrast);
+    }
+  }
+
+  &--icon .cp-dialog__icon-img {
+    width: 72px;
+    height: 72px;
+    border-radius: 18px;
+  }
+}
+
+/* Two-column author layout: form + sticky preview */
+.campaign-editor {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 380px;
+  gap: 24px;
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .campaign-editor {
+    grid-template-columns: 1fr;
+  }
+  .preview-pane {
+    position: static;
+  }
+}
