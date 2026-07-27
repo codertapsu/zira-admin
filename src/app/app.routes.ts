@@ -55,6 +55,11 @@ export const routes: Routes = [
         loadChildren: () => import('./features/errors/errors.routes').then((m) => m.ERROR_ROUTES),
       },
       {
+        path: 'ai-usage',
+        loadChildren: () =>
+          import('./features/ai-usage/ai-usage.routes').then((m) => m.AI_USAGE_ROUTES),
+      },
+      {
         path: 'deliveries',
         loadChildren: () =>
           import('./features/deliveries/deliveries.routes').then((m) => m.DELIVERIES_ROUTES),

@@ -106,6 +106,7 @@ export class ShellComponent {
       title: 'Operations',
       items: [
         { label: 'Errors', path: '/errors' },
+        { label: 'AI usage', path: '/ai-usage' },
         { label: 'Deliveries', path: '/deliveries' },
         { label: 'Bots', path: '/bots' },
         { label: 'Storage', path: '/storage' },
