@@ -30,6 +30,13 @@ export const FLAG_EVENT_PREFIXES: Readonly<Record<FeatureFlag, readonly string[]
   smart_notifications: ['smart_notification_'],
   zalo_bot_notifications: [],
   telegram_bot_notifications: [],
+  // Same attribution problem as the two bot channels above: the Zalo and
+  // Telegram project-chatbot link sheets both emit `project_chatbot_*` and are
+  // distinguished only by a `{ channel }` property, so a prefix join cannot
+  // separate them. Left empty rather than double-counting the Zalo events.
+  telegram_project_chatbot: [],
+  // Account linking has no dedicated event prefix today.
+  account_linking: [],
 };
 
 /**

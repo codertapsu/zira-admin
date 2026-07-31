@@ -40,7 +40,9 @@ export type FeatureFlag =
   | 'smart_notifications'
   | 'drawings'
   | 'web_qr_login'
-  | 'project_chatbot';
+  | 'project_chatbot'
+  | 'account_linking'
+  | 'telegram_project_chatbot';
 
 export const FEATURE_FLAGS: readonly FeatureFlag[] = [
   'ai_assistant',
@@ -54,6 +56,8 @@ export const FEATURE_FLAGS: readonly FeatureFlag[] = [
   'drawings',
   'web_qr_login',
   'project_chatbot',
+  'account_linking',
+  'telegram_project_chatbot',
 ];
 
 export type SupportedLanguage = 'default' | 'en' | 'vi' | 'ru';
