@@ -591,14 +591,34 @@ function formatValue(value: unknown): string {
           <!-- Feature flags -->
           <div class="card" style="padding: 20px">
             <p class="section-title">Feature flags</p>
-            <p class="muted">Saving replaces the full list of enabled flags.</p>
-            <div class="chips" style="margin-top: 12px">
+            <p class="muted">Saving replaces both lists in full.</p>
+            <p class="muted" style="margin-top: 12px">
+              Enabled — grants the feature on top of whatever the plan already gives.
+            </p>
+            <div class="chips" style="margin-top: 8px">
               @for (flag of allFlags; track flag) {
                 <label class="chip" style="cursor: pointer">
                   <input
                     type="checkbox"
                     [checked]="hasFlag(flag)"
+                    [disabled]="hasDeniedFlag(flag)"
                     (change)="toggleFlag(flag, $any($event.target).checked)"
+                  />
+                  {{ humanize(flag) }}
+                </label>
+              }
+            </div>
+            <p class="muted" style="margin-top: 16px">
+              Forced off — wins over the plan grant and the list above. The system kill-switch still
+              wins over everything.
+            </p>
+            <div class="chips" style="margin-top: 8px">
+              @for (flag of allFlags; track flag) {
+                <label class="chip" style="cursor: pointer">
+                  <input
+                    type="checkbox"
+                    [checked]="hasDeniedFlag(flag)"
+                    (change)="toggleDeniedFlag(flag, $any($event.target).checked)"
                   />
                   {{ humanize(flag) }}
                 </label>
@@ -687,6 +707,7 @@ export class UserDetailComponent implements OnInit {
   protected readonly busy = signal<boolean>(false);
 
   protected readonly flags = signal<FeatureFlag[]>([]);
+  protected readonly deniedFlags = signal<FeatureFlag[]>([]);
   protected readonly savingFlags = signal<boolean>(false);
 
   protected readonly history = signal<UserChangeLog[]>([]);
@@ -773,6 +794,24 @@ export class UserDetailComponent implements OnInit {
 
   protected hasFlag(flag: FeatureFlag): boolean {
     return this.flags().includes(flag);
+  }
+
+  protected hasDeniedFlag(flag: FeatureFlag): boolean {
+    return this.deniedFlags().includes(flag);
+  }
+
+  /**
+   * Force a flag off for this user. Also drops it from the enabled list so the
+   * two can never disagree on screen — the server resolves a conflict the same
+   * way (deny wins), but a dead grant left behind reads as a bug.
+   */
+  protected toggleDeniedFlag(flag: FeatureFlag, checked: boolean): void {
+    this.deniedFlags.update((list) =>
+      checked ? [...new Set([...list, flag])] : list.filter((f) => f !== flag),
+    );
+    if (checked) {
+      this.flags.update((list) => list.filter((f) => f !== flag));
+    }
   }
 
   protected toggleFlag(flag: FeatureFlag, checked: boolean): void {
@@ -943,7 +982,7 @@ export class UserDetailComponent implements OnInit {
     }
     this.savingFlags.set(true);
     this._users
-      .updateFeatureFlags(user.id, this.flags())
+      .updateFeatureFlags(user.id, this.flags(), this.deniedFlags())
       .pipe(takeUntilDestroyed(this._destroyRef))
       .subscribe({
         next: (updated) => {
@@ -1206,6 +1245,7 @@ export class UserDetailComponent implements OnInit {
   private _applyUser(user: UserResponse): void {
     this.user.set(user);
     this.flags.set([...user.enabledFeatureFlags]);
+    this.deniedFlags.set([...(user.disabledFeatureFlags ?? [])]);
     this.propTimezone.set(user.timezone);
     this.propTimeFormat.set(user.timeFormat);
     this.propTheme.set(user.theme);

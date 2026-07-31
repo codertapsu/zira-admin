@@ -66,6 +66,8 @@ export interface UserResponse {
   timeFormat: TimeFormat;
   theme: UserTheme;
   enabledFeatureFlags: FeatureFlag[];
+  /** Force-OFF list. Beats the plan grant AND enabledFeatureFlags. */
+  disabledFeatureFlags: FeatureFlag[];
   preferences: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;

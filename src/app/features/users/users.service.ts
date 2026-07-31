@@ -44,9 +44,14 @@ export class UsersService {
     return this._api.patch<UserResponse>(`/admin/users/${id}/properties`, payload);
   }
 
-  public updateFeatureFlags(id: string, flags: FeatureFlag[]): Observable<UserResponse> {
+  public updateFeatureFlags(
+    id: string,
+    flags: FeatureFlag[],
+    denied: FeatureFlag[],
+  ): Observable<UserResponse> {
     return this._api.patch<UserResponse>(`/admin/users/${id}/feature-flags`, {
       enabledFeatureFlags: flags,
+      disabledFeatureFlags: denied,
     });
   }
 
