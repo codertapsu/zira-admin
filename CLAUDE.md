@@ -79,14 +79,16 @@ light and dark blocks. Colours are chosen for this tool and are NOT synced with 
 
 - Firebase project **`zira-7439c`** — shared with `zira-landing` (default site) and
   `zira-bot-console` (site `zira-7439c-3425d`). This console deploys to its **own additional site**.
-- **One-time setup (a human runs this):**
-  1. `firebase hosting:sites:create <site-id>` (e.g. `zira-admin`).
-  2. `firebase target:apply hosting admin <site-id>`.
-  3. Update `.firebaserc` `targets.zira-7439c.hosting.admin` to the real `<site-id>` if it differs
-     from the placeholder `zira-admin`.
-  4. Add the deployed origin (`https://<site-id>.web.app`) to the gateway's `CORS_ORIGINS`
-     (server-owned `.env`), or the browser calls are blocked by CORS.
-- Build: `npm run build` → `dist/zira-admin/browser`. Deploy: `firebase deploy --only hosting:admin`.
+- Site is already created and wired: the `admin` target maps to **`zira-7439c-1da07`**
+  (`.firebaserc`), so the one-time `hosting:sites:create` / `target:apply` steps are DONE.
+- Still required per environment: the deployed origin (`https://zira-7439c-1da07.web.app`) must be
+  in the gateway's `CORS_ORIGINS` (server-owned `.env`), or every browser call is blocked by CORS.
+- Build: `npm run build` → `dist/zira-admin/browser` (matches `firebase.json`'s `public`).
+  Deploy: `npm run deploy:firebase`, which builds first then runs
+  `firebase deploy --only hosting:admin`.
+  NOTE: this repo is **Angular**, so the build step is `npm run build` — not `next build`. The
+  sibling `zira-landing` uses an identically-named script that DOES call `next build`; copying it
+  across produces a script that cannot run here.
 - `firebase.json` rewrites `**` → `/index.html` (SPA) and sets security headers. **The CSP is the
   real boundary**: `connect-src 'self' https://zira.top`. Any new API origin, CDN, font host, or SDK
   is blocked at runtime until `firebase.json` is updated — a deliberate decision, not a drive-by edit.
