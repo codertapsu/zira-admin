@@ -37,6 +37,13 @@ export const FLAG_EVENT_PREFIXES: Readonly<Record<FeatureFlag, readonly string[]
   telegram_project_chatbot: [],
   // Account linking has no dedicated event prefix today.
   account_linking: [],
+  // The four shell-scoped children of the two flags above. Same attribution
+  // problem, one level deeper: the link sheets do not emit the running shell
+  // as an event property at all, so no prefix can separate native from cross.
+  project_chatbot_native: [],
+  project_chatbot_cross: [],
+  telegram_project_chatbot_native: [],
+  telegram_project_chatbot_cross: [],
 };
 
 /**

@@ -42,7 +42,11 @@ export type FeatureFlag =
   | 'web_qr_login'
   | 'project_chatbot'
   | 'account_linking'
-  | 'telegram_project_chatbot';
+  | 'telegram_project_chatbot'
+  | 'project_chatbot_native'
+  | 'project_chatbot_cross'
+  | 'telegram_project_chatbot_native'
+  | 'telegram_project_chatbot_cross';
 
 export const FEATURE_FLAGS: readonly FeatureFlag[] = [
   'ai_assistant',
@@ -58,6 +62,10 @@ export const FEATURE_FLAGS: readonly FeatureFlag[] = [
   'project_chatbot',
   'account_linking',
   'telegram_project_chatbot',
+  'project_chatbot_native',
+  'project_chatbot_cross',
+  'telegram_project_chatbot_native',
+  'telegram_project_chatbot_cross',
 ];
 
 export type SupportedLanguage = 'default' | 'en' | 'vi' | 'ru';
