@@ -145,7 +145,8 @@ interface SettingGroup {
                       [attr.max]="setting.max ?? null"
                       [ngModel]="numValue(setting)"
                       [disabled]="isSaving(setting.key)"
-                      (ngModelChange)="onChange(setting, $event)"
+                      (blur)="onCommit(setting, $any($event.target).value)"
+                      (keydown.enter)="onCommit(setting, $any($event.target).value)"
                     />
                   }
                   @case ('enum') {
@@ -167,7 +168,7 @@ interface SettingGroup {
                         class="input"
                         [ngModel]="strValue(setting)"
                         [disabled]="isSaving(setting.key)"
-                        (ngModelChange)="onChange(setting, $event)"
+                        (blur)="onCommit(setting, $any($event.target).value)"
                       ></textarea>
                     } @else {
                       <input
@@ -175,7 +176,8 @@ interface SettingGroup {
                         type="text"
                         [ngModel]="strValue(setting)"
                         [disabled]="isSaving(setting.key)"
-                        (ngModelChange)="onChange(setting, $event)"
+                        (blur)="onCommit(setting, $any($event.target).value)"
+                        (keydown.enter)="onCommit(setting, $any($event.target).value)"
                       />
                     }
                   }
@@ -266,6 +268,30 @@ export class SystemSettingsComponent implements OnInit {
 
   protected isSaving(key: string): boolean {
     return this.savingKeys().has(key);
+  }
+
+  /**
+   * Commit a free-text or numeric setting on blur / Enter rather than on every
+   * keystroke.
+   *
+   * `(ngModelChange)` fired a PATCH per character, and each PATCH also broadcast
+   * an SSE `system_settings_updated` to every connected client and wrote an
+   * audit-log row — so typing a 20-character value produced 20 writes, 20
+   * broadcasts and 20 audit entries. Booleans and the enum `<select>` still
+   * commit immediately: neither has an intermediate state worth debouncing.
+   *
+   * Numbers arrive from the DOM as strings, so they are coerced back before the
+   * no-op comparison in `onChange`, which would otherwise see `'5' !== 5` and
+   * PATCH on every blur.
+   */
+  protected onCommit(setting: SystemSettingResponse, raw: unknown): void {
+    if (setting.type === 'number') {
+      const parsed = Number(raw);
+      this.onChange(setting, Number.isFinite(parsed) ? parsed : setting.value);
+
+      return;
+    }
+    this.onChange(setting, raw);
   }
 
   protected onChange(setting: SystemSettingResponse, next: unknown): void {
