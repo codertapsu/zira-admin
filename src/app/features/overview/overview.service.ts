@@ -12,7 +12,7 @@ import type { NotificationMetrics, ProductivityTrend } from '../insights/insight
 import { InsightsService } from '../insights/insights.service';
 import type { SubscriptionPurchaseRequestResponse } from '../subscriptions/subscriptions.models';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
-import type { HealthCheckResult, VersionResponse } from './overview.models';
+import type { DeployedStateResponse, HealthCheckResult, VersionResponse } from './overview.models';
 
 /** Live + upcoming campaigns, fetched by their two respective statuses. */
 export interface CampaignsByStatus {
@@ -80,5 +80,13 @@ export class OverviewService {
   /** Public release-metadata handshake (server build + supported client versions). */
   public version(): Observable<VersionResponse> {
     return this._api.get<VersionResponse>('/version');
+  }
+
+  /**
+   * Admin/staff-only: what the process serving this request actually is —
+   * uptime and the latest migration Postgres reports as applied.
+   */
+  public deployedState(): Observable<DeployedStateResponse> {
+    return this._api.get<DeployedStateResponse>('/health/deployed-state');
   }
 }

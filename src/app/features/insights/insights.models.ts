@@ -34,11 +34,23 @@ export interface ActivationFunnel {
   steps: FunnelStep[];
 }
 
-/** Point-in-time notification-delivery metrics. */
+/**
+ * Point-in-time notification-delivery metrics.
+ *
+ * Every counter is scoped to the gateway PROCESS, not to all time: they live in
+ * memory and zero on every deploy (`pm2 delete` + `pm2 start`) and every
+ * `max_memory_restart` OOM. Always render `processStartedAt`/`uptimeSeconds`
+ * alongside them — a zero next to a two-minute uptime means "we have no idea",
+ * not "nothing happened".
+ */
 export interface NotificationMetrics {
   counters: Record<string, number>;
   gauges: Record<string, number>;
   takenAt: string;
+  /** ISO instant the process serving this snapshot started. */
+  processStartedAt: string;
+  /** Seconds the counters have been accumulating. */
+  uptimeSeconds: number;
 }
 
 /** One weekly signup cohort's activation rates (GET /insights/activation-cohorts). */

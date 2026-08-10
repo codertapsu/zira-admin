@@ -16,7 +16,12 @@ import { type ChartPoint, MiniChartComponent } from '../../core/ui/mini-chart.co
 import type { CampaignResponse } from '../campaigns/campaigns.models';
 import type { NotificationMetrics } from '../insights/insights.models';
 import type { SubscriptionPurchaseRequestResponse } from '../subscriptions/subscriptions.models';
-import type { HealthCheckResult, VersionResponse } from './overview.models';
+import type {
+  DeployedStateResponse,
+  HealthCheckResult,
+  SchedulerHeartbeatInfo,
+  VersionResponse,
+} from './overview.models';
 import { type CampaignsByStatus, OverviewService } from './overview.service';
 
 interface MetricEntry {
@@ -33,6 +38,73 @@ interface GatewayStatus {
   health: HealthCheckResult | null;
   ready: HealthCheckResult | null;
   version: VersionResponse | null;
+  deployed: DeployedStateResponse | null;
+}
+
+/** A heartbeat row plus the two things the template needs but should not compute. */
+interface SchedulerRow {
+  job: string;
+  badge: 'ok' | 'warn' | 'danger' | 'muted';
+  detail: string;
+}
+
+/** Coarse duration, because the exact second never matters here. */
+function durationLabel(totalSeconds: number): string {
+  if (!Number.isFinite(totalSeconds) || totalSeconds < 0) {
+    return 'Unknown';
+  }
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  if (days > 0) {
+    return `${days}d ${hours}h`;
+  }
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+  if (minutes > 0) {
+    return `${minutes}m`;
+  }
+  return `${Math.floor(totalSeconds)}s`;
+}
+
+function agoLabel(iso: string | null): string {
+  if (!iso) {
+    return 'never';
+  }
+  const at = Date.parse(iso);
+  if (Number.isNaN(at)) {
+    return 'unknown';
+  }
+  return `${durationLabel(Math.round((Date.now() - at) / 1000))} ago`;
+}
+
+/**
+ * A job is only green once it has actually SUCCEEDED. `running` with no prior
+ * success is the shape of a job that throws every tick, and it must not read
+ * as healthy just because it started.
+ */
+function heartbeatRow(beat: SchedulerHeartbeatInfo): SchedulerRow {
+  if (beat.consecutiveFailures > 0) {
+    const tone = beat.consecutiveFailures >= 3 ? 'danger' : 'warn';
+    return {
+      job: beat.job,
+      badge: tone,
+      detail: `${beat.consecutiveFailures} failed in a row · last success ${agoLabel(beat.lastSuccessAt)}`,
+    };
+  }
+  if (!beat.lastSuccessAt) {
+    return {
+      job: beat.job,
+      badge: 'muted',
+      detail: `started ${agoLabel(beat.lastStartedAt)}, no success recorded`,
+    };
+  }
+  return {
+    job: beat.job,
+    badge: 'ok',
+    detail: `succeeded ${agoLabel(beat.lastSuccessAt)}`,
+  };
 }
 
 function fmtDate(date: Date): string {
@@ -229,7 +301,13 @@ function dauToDate(): string {
             </button>
           </div>
         } @else if (notifMetrics(); as metrics) {
-          <span class="muted">Snapshot taken {{ formatDateTime(metrics.takenAt) }}</span>
+          <!-- The counters live in the gateway process and zero on every deploy
+               and every OOM restart. Without the accumulation window beside
+               them, a post-restart zero reads as a healthy zero. -->
+          <span class="muted">
+            Snapshot taken {{ formatDateTime(metrics.takenAt) }} · counting for
+            {{ metricsWindowLabel() }} (since {{ formatDateTime(metrics.processStartedAt) }})
+          </span>
           <div class="form-grid">
             <div>
               <p class="section-title">Counters</p>
@@ -331,6 +409,47 @@ function dauToDate(): string {
           } @else {
             <p class="muted">Version metadata unavailable.</p>
           }
+
+          <!-- What is actually deployed here, as opposed to what the pending
+               ledger says should be. Admin-only endpoint. -->
+          @if (gateway().deployed; as d) {
+            <div class="kv">
+              <span class="kv__key">Latest migration</span>
+              <span class="kv__val">{{ latestMigrationLabel() }}</span>
+              <span class="kv__key">Migrations applied</span>
+              <span class="kv__val">{{ appliedMigrationCountLabel() }}</span>
+              <span class="kv__key">Environment</span>
+              <span class="kv__val">{{ d.nodeEnv }}</span>
+              <span class="kv__key">Process uptime</span>
+              <span class="kv__val">{{ uptimeLabel() }}</span>
+              <span class="kv__key">Started at</span>
+              <span class="kv__val">{{ formatDateTime(d.startedAt) }}</span>
+            </div>
+
+            <div>
+              <p class="section-title">Schedulers</p>
+              @if (schedulerRows(); as rows) {
+                @if (rows.length === 0) {
+                  <p class="muted">No scheduler has recorded a tick yet.</p>
+                } @else {
+                  <div class="kv">
+                    @for (row of rows; track row.job) {
+                      <span class="kv__key">
+                        <span class="badge badge--{{ row.badge }}">{{ row.job }}</span>
+                      </span>
+                      <span class="kv__val">{{ row.detail }}</span>
+                    }
+                  </div>
+                }
+              } @else {
+                <p class="muted">
+                  Scheduler heartbeats unavailable (migration 1814 may not have run here).
+                </p>
+              }
+            </div>
+          } @else {
+            <p class="muted">Deployed-state metadata unavailable.</p>
+          }
         }
       </div>
 
@@ -404,12 +523,57 @@ export class OverviewComponent implements OnInit {
   protected readonly gaugeEntries = computed<MetricEntry[]>(() =>
     this._toEntries(this.notifMetrics()?.gauges),
   );
+  /** How long the in-memory counters have been accumulating. */
+  protected readonly metricsWindowLabel = computed<string>(() => {
+    const seconds = this.notifMetrics()?.uptimeSeconds;
+    return seconds === undefined ? 'an unknown window' : durationLabel(seconds);
+  });
 
-  // Gateway status (health + readiness + version) — degrades per-probe rather
-  // than failing the whole tile when only one of the three is unreachable.
+  // Gateway status (health + readiness + version + deployed state) — degrades
+  // per-probe rather than failing the whole tile when only one is unreachable.
   protected readonly gatewayLoading = signal<boolean>(false);
   protected readonly gatewayError = signal<string | null>(null);
-  protected readonly gateway = signal<GatewayStatus>({ health: null, ready: null, version: null });
+  protected readonly gateway = signal<GatewayStatus>({
+    health: null,
+    ready: null,
+    version: null,
+    deployed: null,
+  });
+
+  /**
+   * `null` from the server means the query failed, and must never render as a
+   * fact. `appliedMigrationCount === 0` is the one case where "none" is true.
+   */
+  protected readonly latestMigrationLabel = computed<string>(() => {
+    const deployed = this.gateway().deployed;
+    if (!deployed) {
+      return 'Unknown';
+    }
+    if (deployed.latestMigration) {
+      return deployed.latestMigration.name;
+    }
+    return deployed.appliedMigrationCount === 0 ? 'None applied' : 'Unknown';
+  });
+
+  protected readonly appliedMigrationCountLabel = computed<string>(() => {
+    const count = this.gateway().deployed?.appliedMigrationCount;
+    return count === null || count === undefined ? 'Unknown' : String(count);
+  });
+
+  protected readonly uptimeLabel = computed<string>(() => {
+    const deployed = this.gateway().deployed;
+    return deployed ? durationLabel(deployed.uptimeSeconds) : 'Unknown';
+  });
+
+  /** `null` when the heartbeat table could not be read — distinct from empty. */
+  protected readonly schedulerRows = computed<SchedulerRow[] | null>(() => {
+    const beats = this.gateway().deployed?.schedulerHeartbeats;
+    if (!beats) {
+      return null;
+    }
+    return beats.map((beat) => heartbeatRow(beat));
+  });
+
   protected readonly readinessIndicators = computed<IndicatorEntry[]>(() => {
     const details = this.gateway().ready?.details;
     if (!details) {
@@ -554,11 +718,12 @@ export class OverviewComponent implements OnInit {
       health: this._overview.health().pipe(catchError(() => of(null))),
       ready: this._overview.readiness().pipe(catchError(() => of(null))),
       version: this._overview.version().pipe(catchError(() => of(null))),
+      deployed: this._overview.deployedState().pipe(catchError(() => of(null))),
     })
       .pipe(takeUntilDestroyed(this._destroyRef))
       .subscribe((result) => {
         this.gatewayLoading.set(false);
-        if (!result.health && !result.ready && !result.version) {
+        if (!result.health && !result.ready && !result.version && !result.deployed) {
           this.gatewayError.set('Could not reach the gateway.');
           return;
         }
