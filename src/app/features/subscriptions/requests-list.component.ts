@@ -502,7 +502,10 @@ export class RequestsListComponent implements OnInit {
         'This permanently deletes the payment record; the issued subscription is NOT reverted.',
       requirePhrase: req.purchaseCode,
     });
-    if (!confirmed) {
+    // Re-check after the await, as accept/reject do: `deletingId` is still null
+    // while the dialog is open, so two fast clicks would otherwise open two
+    // dialogs and fire two DELETEs.
+    if (!confirmed || this.deletingId() !== null) {
       return;
     }
     this.deletingId.set(req.id);
