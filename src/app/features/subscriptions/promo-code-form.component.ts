@@ -28,6 +28,22 @@ function isoToLocalInput(iso: string | null): string {
   )}:${pad(date.getMinutes())}`;
 }
 
+/**
+ * A number input bound to a signal yields '' when cleared and a number
+ * otherwise. Both '' and a non-numeric value mean "not set", which the API
+ * spells as null — a tracking-only code, or an uncapped one.
+ */
+function toNullableInt(value: number | string): number | null {
+  if (value === '' || value === null || value === undefined) {
+    return null;
+  }
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return null;
+  }
+  return Math.trunc(parsed);
+}
+
 function localInputToIso(value: string): string | null {
   if (!value) {
     return null;
@@ -82,6 +98,51 @@ function localInputToIso(value: string): string | null {
               (ngModelChange)="description.set($event)"
             ></textarea>
           </label>
+
+          <div class="form-grid">
+            <label class="field">
+              <span class="field__label">Discount (%)</span>
+              <input
+                class="input"
+                type="number"
+                min="1"
+                max="100"
+                step="1"
+                placeholder="Leave empty for tracking only"
+                [ngModel]="discountPercent()"
+                (ngModelChange)="discountPercent.set($event)"
+              />
+              <span class="field__hint">
+                1–100. Leave empty for a tracking-only code that records the code but does not
+                change the price. 100% means the user owes nothing and gets no transfer QR.
+              </span>
+            </label>
+            <label class="field">
+              <span class="field__label">Max redemptions</span>
+              <input
+                class="input"
+                type="number"
+                min="1"
+                step="1"
+                placeholder="Leave empty for unlimited"
+                [ngModel]="maxRedemptions()"
+                (ngModelChange)="maxRedemptions.set($event)"
+              />
+              <span class="field__hint">
+                Total cap across all users — not per user. A slot is taken when a request is created
+                and given back if it is cancelled or rejected.
+              </span>
+            </label>
+          </div>
+
+          @if (isEdit()) {
+            <p class="field__hint">
+              Redeemed so far: {{ redemptionCount()
+              }}{{ maxRedemptions() ? ' of ' + maxRedemptions() : '' }}. This counter is owned by
+              the server and cannot be edited here. Changing the discount does not affect requests
+              already issued — they keep the price they were quoted.
+            </p>
+          }
 
           <div class="form-grid">
             <label class="field">
@@ -140,6 +201,12 @@ export class PromoCodeFormComponent implements OnInit {
   protected readonly isActive = signal<boolean>(true);
   protected readonly validFrom = signal<string>('');
   protected readonly validUntil = signal<string>('');
+  // Empty string is the "not set" state for both, mapping to null on the wire —
+  // a tracking-only code and an uncapped code respectively.
+  protected readonly discountPercent = signal<number | string>('');
+  protected readonly maxRedemptions = signal<number | string>('');
+  /** Read-only mirror of the server-owned counter. */
+  protected readonly redemptionCount = signal<number>(0);
 
   protected readonly loading = signal<boolean>(false);
   protected readonly saving = signal<boolean>(false);
@@ -183,6 +250,9 @@ export class PromoCodeFormComponent implements OnInit {
         this.isActive.set(promo.isActive);
         this.validFrom.set(isoToLocalInput(promo.validFrom));
         this.validUntil.set(isoToLocalInput(promo.validUntil));
+        this.discountPercent.set(promo.discountPercent ?? '');
+        this.maxRedemptions.set(promo.maxRedemptions ?? '');
+        this.redemptionCount.set(promo.redemptionCount);
       });
   }
 
@@ -231,6 +301,16 @@ export class PromoCodeFormComponent implements OnInit {
     if (from && until && new Date(from).getTime() > new Date(until).getTime()) {
       return '“Valid from” must be before “Valid until”.';
     }
+    const discount = toNullableInt(this.discountPercent());
+    if (discount !== null && (discount < 1 || discount > 100)) {
+      // 0 is rejected on purpose: the server treats it as a bug, not as
+      // "tracking only" — leaving the field empty is how you express that.
+      return 'Discount must be between 1 and 100, or empty for a tracking-only code.';
+    }
+    const cap = toNullableInt(this.maxRedemptions());
+    if (cap !== null && cap < 1) {
+      return 'Max redemptions must be at least 1, or empty for unlimited.';
+    }
     return null;
   }
 
@@ -252,6 +332,8 @@ export class PromoCodeFormComponent implements OnInit {
       isActive: this.isActive(),
       validFrom: localInputToIso(this.validFrom()),
       validUntil: localInputToIso(this.validUntil()),
+      discountPercent: toNullableInt(this.discountPercent()),
+      maxRedemptions: toNullableInt(this.maxRedemptions()),
     };
   }
 }

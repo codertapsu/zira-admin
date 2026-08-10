@@ -23,12 +23,11 @@ import {
 } from './subscriptions.models';
 
 interface PromoCodeStat {
-  readonly requests: number;
   readonly accepted: number;
   readonly revenue: number;
 }
 
-const EMPTY_STAT: PromoCodeStat = { requests: 0, accepted: 0, revenue: 0 };
+const EMPTY_STAT: PromoCodeStat = { accepted: 0, revenue: 0 };
 
 @Component({
   selector: 'app-promo-codes-list',
@@ -79,10 +78,11 @@ const EMPTY_STAT: PromoCodeStat = { requests: 0, accepted: 0, revenue: 0 };
             <thead>
               <tr>
                 <th>Code</th>
+                <th>Discount</th>
+                <th>Redeemed</th>
                 <th>Valid from</th>
                 <th>Valid until</th>
                 <th>Status</th>
-                <th>Requests</th>
                 <th>Accepted</th>
                 <th>Revenue</th>
                 <th class="table__actions-col">Actions</th>
@@ -95,6 +95,8 @@ const EMPTY_STAT: PromoCodeStat = { requests: 0, accepted: 0, revenue: 0 };
                     <div class="table__name">{{ code.code }}</div>
                     <div class="table__sub">{{ code.name }}</div>
                   </td>
+                  <td>{{ formatDiscount(code.discountPercent) }}</td>
+                  <td>{{ formatRedemptions(code) }}</td>
                   <td>{{ formatDate(code.validFrom) }}</td>
                   <td>{{ formatDate(code.validUntil) }}</td>
                   <td>
@@ -102,7 +104,6 @@ const EMPTY_STAT: PromoCodeStat = { requests: 0, accepted: 0, revenue: 0 };
                       {{ code.isActive ? 'Active' : 'Inactive' }}
                     </span>
                   </td>
-                  <td>{{ statsLoading() ? '…' : statFor(code.code).requests }}</td>
                   <td>{{ statsLoading() ? '…' : statFor(code.code).accepted }}</td>
                   <td>{{ statsLoading() ? '…' : statFor(code.code).revenue.toLocaleString() }}</td>
                   <td class="table__actions-col">
@@ -164,6 +165,22 @@ export class PromoCodesListComponent implements OnInit {
       return '—';
     }
     return new Date(iso).toLocaleString();
+  }
+
+  /** Null means a tracking-only code — recorded on the request, price unchanged. */
+  protected formatDiscount(percent: number | null): string {
+    return percent === null ? 'Tracking only' : `${percent}%`;
+  }
+
+  /**
+   * Authoritative, straight off the promo row — no derivation, no pagination.
+   * Counts slots currently HELD: a request that was cancelled or rejected has
+   * already given its slot back.
+   */
+  protected formatRedemptions(code: PromoCodeResponse): string {
+    return code.maxRedemptions === null
+      ? String(code.redemptionCount)
+      : `${code.redemptionCount} / ${code.maxRedemptions}`;
   }
 
   protected create(): void {
@@ -229,9 +246,14 @@ export class PromoCodesListComponent implements OnInit {
   }
 
   /**
-   * Per-code performance stats, computed client-side from purchase requests
-   * (there's no aggregate backend endpoint): requests carrying the code,
-   * how many were accepted, and the accepted revenue (amountReceived).
+   * Outcome stats only — how many requests carrying the code were ACCEPTED and
+   * the revenue actually received. Both still need the client-side derivation
+   * because no server aggregate exposes them.
+   *
+   * The redemption count is deliberately NOT derived here any more: it now
+   * comes straight off the promo row (`redemptionCount` / `maxRedemptions`),
+   * which is the same counter the server enforces the cap against. A derived
+   * figure could disagree with the thing that actually gates redemption.
    */
   private _loadStats(): void {
     this.statsLoading.set(true);
@@ -256,7 +278,6 @@ export class PromoCodesListComponent implements OnInit {
           const prev = byCode.get(key) ?? EMPTY_STAT;
           const accepted = req.status === 'accepted';
           byCode.set(key, {
-            requests: prev.requests + 1,
             accepted: prev.accepted + (accepted ? 1 : 0),
             revenue: prev.revenue + (accepted ? (req.amountReceived ?? 0) : 0),
           });

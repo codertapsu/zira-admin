@@ -45,13 +45,20 @@ export interface SubscriptionPurchaseRequestResponse {
   decider: UserSummary | null;
   plan: SubscriptionPlanResponse;
   purchaseCode: string;
+  /** THE AMOUNT OWED — post-discount. This is what the user was told to transfer. */
   requestedAmount: number;
+  /** Pre-discount list price, computed server-side as requestedAmount + promoDiscountAmount. */
+  originalAmount: number;
   requestedCurrency: string;
   requestedDurationMonths: number | null;
   acceptedDurationMonths: number | null;
   status: SubscriptionPurchaseRequestStatus;
   note: string | null;
   promoCode: string | null;
+  /** Discount honored at request time (1-100), or null when none/tracking-only. */
+  promoDiscountPercent: number | null;
+  /** Amount subtracted; always exactly originalAmount - requestedAmount. */
+  promoDiscountAmount: number | null;
   provider: string;
   providerReference: string | null;
   amountReceived: number | null;
@@ -82,6 +89,12 @@ export interface PromoCodeResponse {
   isActive: boolean;
   validFrom: string | null;
   validUntil: string | null;
+  /** 1-100, or null for a TRACKING-ONLY code that does not change the price. */
+  discountPercent: number | null;
+  /** Global redemption cap (not per user), or null when uncapped. */
+  maxRedemptions: number | null;
+  /** Authoritative slot count, owned by the server. Not settable. */
+  redemptionCount: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -93,6 +106,8 @@ export interface CreatePromoCodeDto {
   isActive?: boolean;
   validFrom?: string | null;
   validUntil?: string | null;
+  discountPercent?: number | null;
+  maxRedemptions?: number | null;
 }
 
 export type UpdatePromoCodeDto = Partial<Omit<CreatePromoCodeDto, 'code'>>;
