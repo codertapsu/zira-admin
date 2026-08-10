@@ -77,6 +77,16 @@
           },
           "defaultConfiguration": "production"
         },
+        "test": {
+          "builder": "@angular/build:unit-test",
+          "options": {
+            "buildTarget": "zira-admin:build:development",
+            "tsConfig": "tsconfig.spec.json",
+            "runner": "vitest",
+            "watch": false,
+            "reporters": ["default"]
+          }
+        },
         "serve": {
           "builder": "@angular/build:dev-server",
           "configurations": {

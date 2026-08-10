@@ -33,7 +33,13 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      # No lint script and no test suite exist in this repo yet — the gate is
-      # the production build (the same command that emits the deploy artifact).
+      # Tests run before the build: they are far faster, so a regression
+      # surfaces sooner than it would behind a full production bundle.
+      - name: Unit tests
+        run: npm test
+
+      # No lint script exists in this repo yet — the gate is the unit tests
+      # plus the production build (the same command that emits the deploy
+      # artifact).
       - name: Build (production)
         run: npm run build
