@@ -394,7 +394,7 @@ export class RequestsListComponent implements OnInit {
     this.rejectNote.set('');
   }
 
-  protected accept(req: SubscriptionPurchaseRequestResponse): void {
+  protected async accept(req: SubscriptionPurchaseRequestResponse): Promise<void> {
     if (this.deciding()) {
       return;
     }
@@ -407,6 +407,28 @@ export class RequestsListComponent implements OnInit {
       return;
     }
     const amount = this.acceptAmount();
+    const recorded = amount === null ? req.requestedAmount : Number(amount);
+    const months = duration === null ? req.plan.defaultDurationMonths : Number(duration);
+    const durationText = months === null ? "the plan's default duration" : `${months} month(s)`;
+    const confirmed = await this._confirm.ask({
+      title: 'Accept purchase request',
+      message:
+        `Grant ${req.requester.displayName} the ${req.plan.displayName} plan for ` +
+        `${durationText}, recording ${recorded.toLocaleString()} ${req.requestedCurrency} received?`,
+      confirmLabel: 'Accept request',
+      consequence:
+        recorded === req.requestedAmount
+          ? 'This activates a paid subscription immediately and cannot be undone from this screen.'
+          : `The amount received (${recorded.toLocaleString()} ${req.requestedCurrency}) does NOT ` +
+            `match the requested ${req.requestedAmount.toLocaleString()} ${req.requestedCurrency}. ` +
+            'This activates a paid subscription immediately and cannot be undone from this screen.',
+      requirePhrase: req.purchaseCode,
+    });
+    // Re-check after the await: `deciding` is still false while the dialog is
+    // open, so two fast clicks would otherwise open two dialogs and POST twice.
+    if (!confirmed || this.deciding()) {
+      return;
+    }
     this.deciding.set(true);
     this._service
       .acceptRequest(req.id, {
@@ -430,8 +452,23 @@ export class RequestsListComponent implements OnInit {
       });
   }
 
-  protected reject(req: SubscriptionPurchaseRequestResponse): void {
+  protected async reject(req: SubscriptionPurchaseRequestResponse): Promise<void> {
     if (this.deciding()) {
+      return;
+    }
+    const confirmed = await this._confirm.ask({
+      title: 'Reject purchase request',
+      message:
+        `Reject ${req.requester.displayName}'s request for the ${req.plan.displayName} plan ` +
+        `(${req.requestedAmount.toLocaleString()} ${req.requestedCurrency})?`,
+      confirmLabel: 'Reject request',
+      danger: true,
+      consequence:
+        'The requester is told their payment was not accepted. No subscription is granted, and ' +
+        'the decision cannot be undone from this screen.',
+    });
+    // Re-check after the await — see `accept`.
+    if (!confirmed || this.deciding()) {
       return;
     }
     this.deciding.set(true);
