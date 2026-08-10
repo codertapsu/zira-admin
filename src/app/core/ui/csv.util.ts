@@ -10,11 +10,17 @@ function escapeCell(value: string | number | boolean | null | undefined): string
     return '';
   }
   const text = String(value);
+  // FORMULA INJECTION. Excel, Sheets and LibreOffice evaluate a cell that opens
+  // with =, +, -, @, tab or CR as a formula — so an attacker-controlled field
+  // (a display name, a feedback body) becomes code in the operator's spreadsheet
+  // the moment they open the export. Prefixing with an apostrophe forces it to
+  // be read as text; the apostrophe is not displayed.
+  const neutralized = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
   // Quote when the cell contains a delimiter, quote, or newline; double inner quotes.
-  if (/[",\r\n]/.test(text)) {
-    return `"${text.replace(/"/g, '""')}"`;
+  if (/[",\r\n]/.test(neutralized)) {
+    return `"${neutralized.replace(/"/g, '""')}"`;
   }
-  return text;
+  return neutralized;
 }
 
 /**
