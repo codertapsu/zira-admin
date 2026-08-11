@@ -11,6 +11,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { catchError, of } from 'rxjs';
 
+import { metricsWindowLabel } from '../../core/ui/duration.util';
 import { InsightsService } from './insights.service';
 import type { NotificationMetrics } from './insights.models';
 
@@ -33,7 +34,13 @@ interface MetricEntry {
         </div>
       } @else if (data(); as metrics) {
         <div class="toolbar" style="margin-bottom: 16px">
-          <span class="muted">Snapshot taken {{ formatDate(metrics.takenAt) }}</span>
+          <!-- The counters live in the gateway process and zero on every deploy
+               and every OOM restart. Without the accumulation window beside
+               them, a post-restart zero reads as a healthy zero. -->
+          <span class="muted">
+            Snapshot taken {{ formatDate(metrics.takenAt) }} · counting for
+            {{ metricsWindow() }} (since {{ formatDate(metrics.processStartedAt) }})
+          </span>
           <span class="toolbar__spacer"></span>
           <button class="btn btn--ghost btn--sm" type="button" (click)="run()">Refresh</button>
         </div>
@@ -82,6 +89,10 @@ export class NotificationMetricsComponent implements OnInit {
   );
   protected readonly gaugeEntries = computed<MetricEntry[]>(() =>
     this._toEntries(this.data()?.gauges),
+  );
+  /** How long the in-memory counters have been accumulating. */
+  protected readonly metricsWindow = computed<string>(() =>
+    metricsWindowLabel(this.data()?.uptimeSeconds),
   );
 
   public ngOnInit(): void {

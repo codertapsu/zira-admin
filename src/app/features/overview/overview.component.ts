@@ -12,6 +12,7 @@ import { RouterLink } from '@angular/router';
 
 import { catchError, forkJoin, of } from 'rxjs';
 
+import { durationLabel, metricsWindowLabel } from '../../core/ui/duration.util';
 import { type ChartPoint, MiniChartComponent } from '../../core/ui/mini-chart.component';
 import type { CampaignResponse } from '../campaigns/campaigns.models';
 import type { NotificationMetrics } from '../insights/insights.models';
@@ -46,26 +47,6 @@ interface SchedulerRow {
   job: string;
   badge: 'ok' | 'warn' | 'danger' | 'muted';
   detail: string;
-}
-
-/** Coarse duration, because the exact second never matters here. */
-function durationLabel(totalSeconds: number): string {
-  if (!Number.isFinite(totalSeconds) || totalSeconds < 0) {
-    return 'Unknown';
-  }
-  const days = Math.floor(totalSeconds / 86400);
-  const hours = Math.floor((totalSeconds % 86400) / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  if (days > 0) {
-    return `${days}d ${hours}h`;
-  }
-  if (hours > 0) {
-    return `${hours}h ${minutes}m`;
-  }
-  if (minutes > 0) {
-    return `${minutes}m`;
-  }
-  return `${Math.floor(totalSeconds)}s`;
 }
 
 function agoLabel(iso: string | null): string {
@@ -306,7 +287,7 @@ function dauToDate(): string {
                them, a post-restart zero reads as a healthy zero. -->
           <span class="muted">
             Snapshot taken {{ formatDateTime(metrics.takenAt) }} · counting for
-            {{ metricsWindowLabel() }} (since {{ formatDateTime(metrics.processStartedAt) }})
+            {{ metricsWindow() }} (since {{ formatDateTime(metrics.processStartedAt) }})
           </span>
           <div class="form-grid">
             <div>
@@ -524,10 +505,9 @@ export class OverviewComponent implements OnInit {
     this._toEntries(this.notifMetrics()?.gauges),
   );
   /** How long the in-memory counters have been accumulating. */
-  protected readonly metricsWindowLabel = computed<string>(() => {
-    const seconds = this.notifMetrics()?.uptimeSeconds;
-    return seconds === undefined ? 'an unknown window' : durationLabel(seconds);
-  });
+  protected readonly metricsWindow = computed<string>(() =>
+    metricsWindowLabel(this.notifMetrics()?.uptimeSeconds),
+  );
 
   // Gateway status (health + readiness + version + deployed state) — degrades
   // per-probe rather than failing the whole tile when only one is unreachable.

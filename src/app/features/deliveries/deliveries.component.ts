@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   DestroyRef,
   inject,
   OnInit,
@@ -13,6 +14,7 @@ import { RouterLink } from '@angular/router';
 import { catchError, of } from 'rxjs';
 
 import { ConfirmService } from '../../core/ui/confirm.service';
+import { metricsWindowLabel } from '../../core/ui/duration.util';
 import { NotificationService } from '../../core/ui/notification.service';
 import { DeliveriesService } from './deliveries.service';
 import {
@@ -38,13 +40,19 @@ type DeliveriesTab = 'outbox' | 'deliveries';
         <h1 class="page__title">Deliveries</h1>
       </header>
 
-      <!-- Backlog tile -->
+      <!-- Delivery health tile -->
       <div class="card" style="padding: 20px; margin-bottom: 16px">
         <div class="toolbar">
-          <p class="section-title" style="margin: 0">Delivery backlog</p>
+          <p class="section-title" style="margin: 0">Delivery health</p>
           <span class="toolbar__spacer"></span>
           @if (metrics(); as m) {
-            <span class="muted">Snapshot taken {{ formatDate(m.takenAt) }}</span>
+            <!-- The counters live in the gateway process and zero on every
+                 deploy and every OOM restart. Without the accumulation window
+                 beside them, a post-restart zero reads as a healthy zero. -->
+            <span class="muted">
+              Snapshot taken {{ formatDate(m.takenAt) }} · counting for {{ metricsWindow() }} (since
+              {{ formatDate(m.processStartedAt) }})
+            </span>
           }
           <button
             class="btn btn--ghost btn--sm"
@@ -386,10 +394,14 @@ export class DeliveriesComponent implements OnInit {
   protected readonly tab = signal<DeliveriesTab>('outbox');
   private _deliveriesLoaded = false;
 
-  // Backlog tile
+  // Delivery health tile
   protected readonly metrics = signal<DeliveryMetricsSnapshot | null>(null);
   protected readonly metricsLoading = signal<boolean>(false);
   protected readonly metricsError = signal<string | null>(null);
+  /** How long the in-memory counters have been accumulating. */
+  protected readonly metricsWindow = computed<string>(() =>
+    metricsWindowLabel(this.metrics()?.uptimeSeconds),
+  );
 
   // Regenerate action
   protected readonly regenerateEventId = signal<string>('');
@@ -465,7 +477,7 @@ export class DeliveriesComponent implements OnInit {
       .subscribe((data) => {
         this.metricsLoading.set(false);
         if (!data) {
-          this.metricsError.set('Could not load the delivery backlog.');
+          this.metricsError.set('Could not load delivery health metrics.');
           return;
         }
         this.metrics.set(data);

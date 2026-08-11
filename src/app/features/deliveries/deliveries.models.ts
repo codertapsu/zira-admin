@@ -76,9 +76,19 @@ export interface NotificationOk {
  * InsightsService already reads for the full counters/gauges dashboard.
  * Counter/gauge keys are flat metric names (optionally with a `{label="x"}`
  * suffix); unlabeled metrics key off the bare name.
+ *
+ * Every number is scoped to the gateway PROCESS: the counters live in memory
+ * and zero on every deploy (`pm2 delete` + `pm2 start`) and every
+ * `max_memory_restart` OOM. Always render `processStartedAt`/`uptimeSeconds`
+ * alongside them — a zero next to a two-minute uptime means "we have no idea",
+ * not "nothing happened".
  */
 export interface DeliveryMetricsSnapshot {
   counters: Record<string, number>;
   gauges: Record<string, number>;
   takenAt: string;
+  /** ISO instant the process serving this snapshot started. */
+  processStartedAt: string;
+  /** Seconds the counters have been accumulating. */
+  uptimeSeconds: number;
 }
