@@ -104,7 +104,11 @@ light and dark blocks. Colours are chosen for this tool and are NOT synced with 
 
 ## Verification
 
-`package.json` scripts: `ng`, `start`, `build`, `watch`. No lint or test setup yet.
+`package.json` scripts: `ng`, `start`, `build`, `watch`, `test`, `deploy:firebase`.
+There IS a test setup — vitest with 4 spec files under `src/app/core/`, and CI
+runs `npm test` BEFORE the build (`.github/workflows/admin-ci.yml`). Run it
+rather than assuming it does not exist. There is still no LINT script; that
+part of the old note was the only accurate half.
 
 - `npm run build` — the real gate, and the same command CI runs (`.github/workflows/admin-ci.yml`,
   Node 24.18.0 + npm 12). Production budgets: initial 500kB warn / 1MB error.

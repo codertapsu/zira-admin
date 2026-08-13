@@ -1,0 +1,24 @@
+# Weekly dependency-update PRs (audit dim-6: no update automation or
+# vulnerability scanning). Grouped to keep PR volume low; security updates
+# always arrive individually regardless of the schedule.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types: ['minor', 'patch']
+    ignore:
+      # TypeScript is pinned at 6.0.3 across every Zira repo: 7.0 ships no JS API,
+      # and typescript-eslint@8 declares a peer of >=4.8.4 <6.1.0, so the bump
+      # cannot install. Revisit after TS 7.1 with confirmed toolchain support.
+      - dependency-name: typescript
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 2
