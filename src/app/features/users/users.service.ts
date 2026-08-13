@@ -72,10 +72,10 @@ export class UsersService {
     return this._api.post<UserResponse>(`/admin/users/${id}/reactivate`);
   }
 
-  /** Hard delete; the `{ success: true }` body is ignored by `delete()`. */
-  public remove(id: string): Observable<void> {
-    return this._api.delete(`/admin/users/${id}`);
-  }
+  // `remove()` (DELETE /admin/users/:id) was removed in 6.0.2. The endpoint no
+  // longer exists server-side: it destroyed a creator's projects and orphaned
+  // other people's tasks inside them, while usually aborting on a foreign-key
+  // violation. Use `deactivate` / `reactivate`, which are reversible.
 
   public history(
     id: string,

@@ -209,14 +209,13 @@ function formatValue(value: unknown): string {
                   Reactivate
                 </button>
               }
-              <button
-                class="btn btn--danger btn--sm"
-                type="button"
-                [disabled]="busy()"
-                (click)="remove(u)"
-              >
-                Delete
-              </button>
+<!--
+                The "Delete" button was removed in 6.0.2 along with its
+                endpoint. It usually failed on a foreign-key violation, and
+                when it succeeded it destroyed the user's projects and orphaned
+                other people's tasks inside them. Deactivate above is the
+                supported, reversible path.
+              -->
             </div>
           </div>
 
@@ -898,39 +897,12 @@ export class UserDetailComponent implements OnInit {
     });
   }
 
-  protected async remove(user: UserResponse): Promise<void> {
-    if (this.busy()) {
-      return;
-    }
-    const phrase = user.username || user.displayName || user.id;
-    const confirmed = await this._confirm.ask({
-      title: 'Delete user',
-      message: 'This permanently deletes the user and cannot be undone.',
-      consequence:
-        'All of the user’s data — projects, tasks, notes, and history — is permanently erased. This cannot be reversed.',
-      confirmLabel: 'Delete',
-      danger: true,
-      requirePhrase: phrase,
-    });
-    if (!confirmed) {
-      return;
-    }
-    this.busy.set(true);
-    this._users
-      .remove(user.id)
-      .pipe(takeUntilDestroyed(this._destroyRef))
-      .subscribe({
-        next: () => {
-          this.busy.set(false);
-          this._notify.success('User deleted.');
-          void this._router.navigate(['/users']);
-        },
-        error: () => {
-          this.busy.set(false);
-          this._notify.error('Could not delete the user.');
-        },
-      });
-  }
+  // `remove()` was removed in 6.0.2 with the endpoint behind it. Its confirm
+  // dialog promised that "projects, tasks, notes, and history" would be
+  // "permanently erased", which was not what happened: the delete usually
+  // aborted on a RESTRICT constraint, and when it went through it cascaded the
+  // user's projects away and left every task inside them orphaned rather than
+  // erased — other people's included. Deactivate is the reversible path.
 
   protected assignStaff(user: UserResponse): void {
     if (this.busy()) {
