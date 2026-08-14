@@ -1,6 +1,6 @@
 {
   "name": "zira-admin",
-  "version": "6.0.0",
+  "version": "6.0.3",
   "scripts": {
     "ng": "ng",
     "start": "ng serve --port 4300",
