@@ -24,7 +24,7 @@ jobs:
           node-version: 24.18.0
           cache: npm
       - name: Use npm 12 (declared toolchain)
-        run: npm install -g npm@12.0.1
+        run: npm install -g npm@12.0.2
 
       # package.json pins every dependency to an exact version and is the source of
       # truth in CI exactly as it is locally, so `npm install` rather than `npm ci`.
