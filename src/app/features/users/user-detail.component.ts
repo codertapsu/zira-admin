@@ -19,6 +19,7 @@ import {
   type TimeFormat,
   type UserTheme,
 } from '../../core/api/models';
+import { TokenStoreService } from '../../core/auth/token-store.service';
 import { ConfirmService } from '../../core/ui/confirm.service';
 import { NotificationService } from '../../core/ui/notification.service';
 import { UsersService } from './users.service';
@@ -45,9 +46,19 @@ interface ChangeEntry {
  * controls can be hidden for staff. On any decode failure we show the controls
  * and let the server enforce the 403.
  */
-function currentAdminCanManageRoles(): boolean {
+/**
+ * Reads the caller's own roles out of the access token.
+ *
+ * Takes the token from TokenStoreService rather than reaching into
+ * localStorage with a copy of its private key: the store is fail-soft and
+ * keeps the session in memory when storage is unavailable, so the direct read
+ * returned null in that case and this fell open — showing a staff operator a
+ * Role management card whose buttons the server then (correctly) rejected with
+ * an unexplained 403. The duplicated key could also drift silently.
+ */
+function currentAdminCanManageRoles(accessToken: string | null): boolean {
   try {
-    const token = localStorage.getItem('zira.admin.accessToken');
+    const token = accessToken;
     if (!token) {
       return true;
     }
@@ -691,10 +702,11 @@ export class UserDetailComponent implements OnInit {
   private readonly _router = inject(Router);
   private readonly _confirm = inject(ConfirmService);
   private readonly _notify = inject(NotificationService);
+  private readonly _tokens = inject(TokenStoreService);
   private readonly _destroyRef = inject(DestroyRef);
 
   protected readonly allFlags = FEATURE_FLAGS;
-  protected readonly canManageRoles = currentAdminCanManageRoles();
+  protected readonly canManageRoles = currentAdminCanManageRoles(this._tokens.accessToken());
   protected readonly timeFormats = TIME_FORMATS;
   protected readonly themes = THEMES;
   protected readonly languages = LANGUAGES;

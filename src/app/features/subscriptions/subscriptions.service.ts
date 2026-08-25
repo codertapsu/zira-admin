@@ -74,12 +74,6 @@ export class SubscriptionsService {
     );
   }
 
-  public getRequest(id: string): Observable<SubscriptionPurchaseRequestResponse> {
-    return this._api.get<SubscriptionPurchaseRequestResponse>(
-      `/admin/subscription-purchase-requests/${id}`,
-    );
-  }
-
   public acceptRequest(
     id: string,
     payload: AcceptPurchaseRequestDto,

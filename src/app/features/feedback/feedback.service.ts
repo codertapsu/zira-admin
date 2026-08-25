@@ -27,10 +27,6 @@ export class FeedbackService {
     return this._api.patch<FeedbackResponse>(`/admin/feedback/${id}/status`, { status });
   }
 
-  public listReplies(id: string): Observable<FeedbackReplyResponse[]> {
-    return this._api.get<FeedbackReplyResponse[]>(`/admin/feedback/${id}/replies`);
-  }
-
   public addReply(id: string, message: string): Observable<FeedbackReplyResponse> {
     return this._api.post<FeedbackReplyResponse>(`/admin/feedback/${id}/replies`, { message });
   }

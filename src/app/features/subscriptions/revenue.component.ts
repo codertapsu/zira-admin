@@ -79,8 +79,16 @@ interface AgingBucket {
         <div class="stat-grid">
           <div class="stat">
             <div class="stat__label">Accepted revenue (in range)</div>
-            <div class="stat__value">{{ totalRevenue().toLocaleString() }}</div>
-            <div class="stat__sub">sum of amountReceived</div>
+            <div class="stat__value">
+              {{ totalRevenue().toLocaleString() }} {{ revenueCurrency() }}
+            </div>
+            <div class="stat__sub">
+              @if (mixedCurrencies()) {
+                <span class="warn">mixed currencies — figure is not meaningful</span>
+              } @else {
+                sum of amountReceived
+              }
+            </div>
           </div>
           <div class="stat">
             <div class="stat__label">Median time-to-decision</div>
@@ -174,6 +182,31 @@ export class RevenueComponent implements OnInit {
 
   protected readonly totalRevenue = computed<number>(() =>
     this.revenuePoints().reduce((sum, p) => sum + p.value, 0),
+  );
+
+  /**
+   * Every other money figure in this console prints its currency beside it, and
+   * each request carries its own `requestedCurrency`. This one summed across
+   * whatever the rows held and rendered the result bare, so today it happens to
+   * be right (all VND) and reads as unitless — and the first request accepted
+   * in another currency would silently make it a sum of mixed units.
+   */
+  protected readonly acceptedCurrencies = computed<string[]>(() => [
+    ...new Set(
+      this.requests()
+        .filter((r) => r.status === 'accepted' && r.requestedCurrency)
+        .map((r) => r.requestedCurrency),
+    ),
+  ]);
+
+  protected readonly revenueCurrency = computed<string>(() => {
+    const currencies = this.acceptedCurrencies();
+
+    return currencies.length === 1 ? currencies[0] : '';
+  });
+
+  protected readonly mixedCurrencies = computed<boolean>(
+    () => this.acceptedCurrencies().length > 1,
   );
 
   protected readonly medianDecisionHours = computed<number | null>(() => {
