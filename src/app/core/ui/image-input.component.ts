@@ -11,6 +11,7 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 
+import { ClientConfigService } from '../api/client-config.service';
 import { UploadService } from '../api/upload.service';
 import { NotificationService } from './notification.service';
 
@@ -79,6 +80,12 @@ export class ImageInputComponent {
 
   protected readonly accept = computed(() => (this.kind() === 'video' ? 'video/*' : 'image/*'));
 
+  private readonly _clientConfig = inject(ClientConfigService);
+
+  public constructor() {
+    this._clientConfig.ensureLoaded();
+  }
+
   protected readonly uploading = signal<boolean>(false);
   protected readonly error = signal<string | null>(null);
 
@@ -90,6 +97,22 @@ export class ImageInputComponent {
       return;
     }
     const noun = this.kind() === 'video' ? 'Video' : 'Image';
+
+    // Check before sending the bytes. The gateway publishes this limit so a
+    // client that respects it never has an upload rejected for size; without
+    // it a 35MB hero video uploaded in full only to 413, and the message named
+    // no limit to check against.
+    const maxBytes = this._clientConfig.maxFileSizeBytes();
+
+    if (file.size > maxBytes) {
+      const limitMb = Math.floor(maxBytes / (1024 * 1024));
+
+      this.error.set(`${noun} is too large. The limit is ${limitMb} MB.`);
+      this._notify.error(`${noun} exceeds the ${limitMb} MB limit.`);
+
+      return;
+    }
+
     this.uploading.set(true);
     this.error.set(null);
     this._upload

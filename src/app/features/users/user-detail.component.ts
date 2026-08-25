@@ -209,7 +209,7 @@ function formatValue(value: unknown): string {
                   Reactivate
                 </button>
               }
-<!--
+              <!--
                 The "Delete" button was removed in 6.0.2 along with its
                 endpoint. It usually failed on a foreign-key violation, and
                 when it succeeded it destroyed the user's projects and orphaned
@@ -230,7 +230,7 @@ function formatValue(value: unknown): string {
                     class="btn btn--ghost btn--sm"
                     type="button"
                     [disabled]="busy()"
-                    (click)="revokeStaff(u)"
+                    (click)="void revokeStaff(u)"
                   >
                     Revoke staff
                   </button>
@@ -239,7 +239,7 @@ function formatValue(value: unknown): string {
                     class="btn btn--primary btn--sm"
                     type="button"
                     [disabled]="busy()"
-                    (click)="assignStaff(u)"
+                    (click)="void assignStaff(u)"
                   >
                     Assign staff
                   </button>
@@ -904,10 +904,29 @@ export class UserDetailComponent implements OnInit {
   // user's projects away and left every task inside them orphaned rather than
   // erased — other people's included. Deactivate is the reversible path.
 
-  protected assignStaff(user: UserResponse): void {
+  protected async assignStaff(user: UserResponse): Promise<void> {
     if (this.busy()) {
       return;
     }
+
+    // The highest-blast-radius button in this console and, until now, the only
+    // mutation without a confirm — sixteen lower-impact actions ask, including
+    // revoking a single session. It sits one row from Deactivate at the same
+    // size, and staff unlocks every @Roles(Admin, Staff) endpoint, including
+    // the support surface that bypasses project membership by design.
+    const confirmed = await this._confirm.ask({
+      title: 'Assign staff role',
+      message:
+        `${user.displayName || user.username || user.id} will be able to sign into this console ` +
+        "and read every user's profile, subscriptions and support data.",
+      confirmLabel: 'Assign staff',
+      danger: true,
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
     this.busy.set(true);
     this._users
       .assignStaff(user.id)
@@ -926,10 +945,22 @@ export class UserDetailComponent implements OnInit {
       });
   }
 
-  protected revokeStaff(user: UserResponse): void {
+  protected async revokeStaff(user: UserResponse): Promise<void> {
     if (this.busy()) {
       return;
     }
+
+    const confirmed = await this._confirm.ask({
+      title: 'Revoke staff role',
+      message: `${user.displayName || user.username || user.id} will lose access to this console.`,
+      confirmLabel: 'Revoke staff',
+      danger: true,
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
     this.busy.set(true);
     // DELETE returns a body, but our delete() is void — re-fetch to refresh state.
     this._users

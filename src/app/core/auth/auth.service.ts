@@ -68,8 +68,32 @@ export class AuthService {
     return this._refreshInFlight;
   }
 
-  /** Clear the session and return to the connect screen. */
+  /**
+   * Ends the session on the server, then locally.
+   *
+   * Clearing local state alone left the refresh-token family redeemable for
+   * its full 30-day TTL, so anything that had captured the stored token could
+   * still mint admin access tokens long after the operator signed out — on a
+   * shared machine, that is the whole point of signing out. This console
+   * renders the token-reuse feed on its own Security page, which made the
+   * omission particularly odd.
+   *
+   * Fire-and-forget: the local session is cleared whatever the server says, so
+   * a network failure can never strand the operator in a signed-in shell.
+   */
   public logout(): void {
+    const refreshToken = this._tokens.refreshToken();
+
+    if (refreshToken) {
+      this._http
+        .post<unknown>(
+          `${this._base}/auth/logout`,
+          {},
+          { headers: { 'x-refresh-token': refreshToken } },
+        )
+        .subscribe({ next: () => undefined, error: () => undefined });
+    }
+
     this._tokens.clear();
     void this._router.navigate(['/connect']);
   }
