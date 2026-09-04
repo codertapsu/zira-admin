@@ -84,7 +84,7 @@ interface AgingBucket {
             </div>
             <div class="stat__sub">
               @if (mixedCurrencies()) {
-                <span class="warn">mixed currencies — figure is not meaningful</span>
+                <span class="badge badge--warn">mixed currencies — not a meaningful total</span>
               } @else {
                 sum of amountReceived
               }
@@ -190,11 +190,23 @@ export class RevenueComponent implements OnInit {
    * whatever the rows held and rendered the result bare, so today it happens to
    * be right (all VND) and reads as unitless — and the first request accepted
    * in another currency would silently make it a sum of mixed units.
+   *
+   * The filter must mirror `revenuePoints` exactly — same status, same
+   * `decidedAt` range. `requests()` holds every fetched row and the range is
+   * applied per-computed, so filtering on status alone would let a historical
+   * row outside the window declare the figure "mixed" when the sum it labels is
+   * a clean single currency.
    */
   protected readonly acceptedCurrencies = computed<string[]>(() => [
     ...new Set(
       this.requests()
-        .filter((r) => r.status === 'accepted' && r.requestedCurrency)
+        .filter(
+          (r) =>
+            r.status === 'accepted' &&
+            r.decidedAt !== null &&
+            this._inRange(r.decidedAt) &&
+            Boolean(r.requestedCurrency),
+        )
         .map((r) => r.requestedCurrency),
     ),
   ]);

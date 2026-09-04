@@ -104,7 +104,7 @@ export class ImageInputComponent {
     // no limit to check against.
     const maxBytes = this._clientConfig.maxFileSizeBytes();
 
-    if (file.size > maxBytes) {
+    if (maxBytes !== null && file.size > maxBytes) {
       const limitMb = Math.floor(maxBytes / (1024 * 1024));
 
       this.error.set(`${noun} is too large. The limit is ${limitMb} MB.`);

@@ -12,8 +12,12 @@ interface ClientConfigResponse {
   uploads: ClientConfigUploads;
 }
 
-/** Matches the gateway's own fallback, so the check is never wilder than the server. */
-const DEFAULT_MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024;
+/**
+ * `null` until the gateway answers. Deliberately not a default ceiling: a
+ * pre-check that guesses low rejects files the server would have accepted, so
+ * an unknown limit means "do not block" rather than "assume 20 MB".
+ */
+const UNKNOWN_LIMIT = null;
 
 /**
  * Reads the limits the gateway publishes at `GET /client-config`.
@@ -23,15 +27,16 @@ const DEFAULT_MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024;
  * campaign video uploaded in full, came back 413, and reported "Upload failed.
  * Check the file and try again" with no limit stated anywhere to check against.
  *
- * Public endpoint, fetched once and cached. On any failure the default stands,
- * so a config blip cannot block uploads that would have succeeded.
+ * Public endpoint, fetched once and cached. On failure the limit stays unknown
+ * and the pre-check is skipped, so a config blip cannot block an upload the
+ * server would have taken — the server remains the authority either way.
  */
 @Injectable({ providedIn: 'root' })
 export class ClientConfigService {
   private readonly _api = inject(ApiService);
   private _requested = false;
 
-  public readonly maxFileSizeBytes = signal<number>(DEFAULT_MAX_FILE_SIZE_BYTES);
+  public readonly maxFileSizeBytes = signal<number | null>(UNKNOWN_LIMIT);
 
   public ensureLoaded(): void {
     if (this._requested) {
@@ -47,7 +52,11 @@ export class ClientConfigService {
           this.maxFileSizeBytes.set(limit);
         }
       },
-      error: () => undefined,
+      // Leave the limit unknown so the pre-check skips. Retry on the next
+      // request rather than pinning a guess for the whole session.
+      error: () => {
+        this._requested = false;
+      },
     });
   }
 }
