@@ -72,7 +72,16 @@ const CSV_COLUMNS: readonly CsvColumn<SubscriptionPurchaseRequestResponse>[] = [
         </select>
         <button class="btn btn--sm" type="button" (click)="fetch()">Search</button>
         @if (pendingCount(); as count) {
-          <span class="badge badge--warn">{{ count }} pending</span>
+          <span
+            class="badge badge--warn"
+            [title]="
+              pendingCountTruncated()
+                ? 'The count stopped at the page cap — there are at least this many.'
+                : 'Exact count of pending requests.'
+            "
+          >
+            {{ count }}{{ pendingCountTruncated() ? '+' : '' }} pending
+          </span>
         }
         <div class="toolbar__spacer"></div>
         <button
@@ -341,6 +350,14 @@ export class RequestsListComponent implements OnInit {
   protected readonly acceptNote = signal<string>('');
   protected readonly rejectNote = signal<string>('');
 
+  // True when the page cap stopped the drain rather than the data running
+
+  // out. The badge used to read a flat 1000 and stop moving, which an operator
+
+  // working the queue could not tell from making no progress at all.
+
+  protected readonly pendingCountTruncated = signal(false);
+
   protected readonly pendingCount = signal<number | null>(null);
 
   public ngOnInit(): void {
@@ -601,9 +618,10 @@ export class RequestsListComponent implements OnInit {
         catchError(() => of(null)),
         takeUntilDestroyed(this._destroyRef),
       )
-      .subscribe((items) => {
-        if (items !== null) {
-          this.pendingCount.set(items.length);
+      .subscribe((result) => {
+        if (result !== null) {
+          this.pendingCount.set(result.items.length);
+          this.pendingCountTruncated.set(result.truncated);
         }
       });
   }

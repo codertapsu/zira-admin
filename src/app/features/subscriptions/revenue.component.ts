@@ -295,13 +295,13 @@ export class RevenueComponent implements OnInit {
         catchError(() => of(null)),
         takeUntilDestroyed(this._destroyRef),
       )
-      .subscribe((items) => {
+      .subscribe((result) => {
         this.loading.set(false);
-        if (items === null) {
+        if (result === null) {
           this.error.set('Could not load purchase requests for the revenue report.');
           return;
         }
-        this.requests.set(items);
+        this.requests.set(result.items);
       });
   }
 

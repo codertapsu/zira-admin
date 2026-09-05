@@ -264,13 +264,13 @@ export class PromoCodesListComponent implements OnInit {
         catchError(() => of(null)),
         takeUntilDestroyed(this._destroyRef),
       )
-      .subscribe((requests) => {
+      .subscribe((result) => {
         this.statsLoading.set(false);
-        if (requests === null) {
+        if (result === null) {
           return;
         }
         const byCode = new Map<string, PromoCodeStat>();
-        for (const req of requests) {
+        for (const req of result.items) {
           if (!req.promoCode) {
             continue;
           }

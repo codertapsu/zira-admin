@@ -378,14 +378,14 @@ export class SubscribersListComponent implements OnInit {
         catchError(() => of(null)),
         takeUntilDestroyed(this._destroyRef),
       )
-      .subscribe((rows) => {
+      .subscribe((result) => {
         this.planStatsLoading.set(false);
-        if (rows === null) {
+        if (result === null) {
           this.planStatsError.set('Could not load active-subscriber counts.');
           return;
         }
         const counts = new Map<string, number>();
-        for (const row of rows) {
+        for (const row of result.items) {
           counts.set(row.planCode, (counts.get(row.planCode) ?? 0) + 1);
         }
         this._planCounts.set(counts);
