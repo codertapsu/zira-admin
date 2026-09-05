@@ -12,7 +12,8 @@ import { FormsModule } from '@angular/forms';
 import { catchError, of } from 'rxjs';
 
 import { ConfirmService } from '../../core/ui/confirm.service';
-import { type CsvColumn, downloadCsv } from '../../core/ui/csv.util';
+import { type CsvColumn } from '../../core/ui/csv.util';
+import { CsvExportService } from '../../core/ui/csv-export.service';
 import { NotificationService } from '../../core/ui/notification.service';
 import { BotsService } from './bots.service';
 import type { AdminBotBindingResponse, BotBindingPlatform } from './bots.models';
@@ -191,6 +192,7 @@ const CSV_COLUMNS: readonly CsvColumn<AdminBotBindingResponse>[] = [
   `,
 })
 export class BotsComponent implements OnInit {
+  private readonly _csv = inject(CsvExportService);
   private readonly _bots = inject(BotsService);
   private readonly _confirm = inject(ConfirmService);
   private readonly _notify = inject(NotificationService);
@@ -237,7 +239,7 @@ export class BotsComponent implements OnInit {
   }
 
   protected exportCsv(): void {
-    downloadCsv('bot-bindings', CSV_COLUMNS, this.bindings());
+    this._csv.download('admin-bot-bindings', 'bot-bindings', CSV_COLUMNS, this.bindings());
   }
 
   protected async forceUnlink(binding: AdminBotBindingResponse): Promise<void> {

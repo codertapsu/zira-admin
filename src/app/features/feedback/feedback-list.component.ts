@@ -13,7 +13,8 @@ import { Router, RouterLink } from '@angular/router';
 
 import { catchError, of } from 'rxjs';
 
-import { type CsvColumn, downloadCsv } from '../../core/ui/csv.util';
+import { type CsvColumn } from '../../core/ui/csv.util';
+import { CsvExportService } from '../../core/ui/csv-export.service';
 import { NotificationService } from '../../core/ui/notification.service';
 import { FeedbackService } from './feedback.service';
 import {
@@ -216,6 +217,7 @@ const FEEDBACK_CSV_COLUMNS: readonly CsvColumn<FeedbackResponse>[] = [
   `,
 })
 export class FeedbackListComponent implements OnInit {
+  private readonly _csv = inject(CsvExportService);
   private readonly _service = inject(FeedbackService);
   private readonly _router = inject(Router);
   private readonly _notify = inject(NotificationService);
@@ -302,7 +304,7 @@ export class FeedbackListComponent implements OnInit {
   }
 
   protected exportCsv(): void {
-    downloadCsv('feedback.csv', FEEDBACK_CSV_COLUMNS, this.visibleItems());
+    this._csv.download('admin-feedback', 'feedback.csv', FEEDBACK_CSV_COLUMNS, this.visibleItems());
   }
 
   protected changeRowStatus(item: FeedbackResponse, next: FeedbackStatus): void {

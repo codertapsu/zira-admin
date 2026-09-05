@@ -35,22 +35,7 @@ export function toCsv<T>(columns: readonly CsvColumn<T>[], rows: readonly T[]): 
   return `﻿${header}\r\n${body}`;
 }
 
-/** Trigger a client-side download of the rows as a CSV file. */
-export function downloadCsv<T>(
-  filename: string,
-  columns: readonly CsvColumn<T>[],
-  rows: readonly T[],
-): void {
-  const csv = toCsv(columns, rows);
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = filename.endsWith('.csv') ? filename : `${filename}.csv`;
-  anchor.style.display = 'none';
-  document.body.appendChild(anchor);
-  anchor.click();
-  document.body.removeChild(anchor);
-  // Revoke on the next tick so the download has time to start.
-  setTimeout(() => URL.revokeObjectURL(url), 0);
-}
+// NOTE: there is deliberately no `downloadCsv` here any more. Handing a file to
+// the operator goes through `CsvExportService.download`, which records the
+// egress first — see that service for why. Keeping a free download function
+// beside it would just be the hole again, one import away.

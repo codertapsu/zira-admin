@@ -12,7 +12,8 @@ import { FormsModule } from '@angular/forms';
 
 import { catchError, of } from 'rxjs';
 
-import { type CsvColumn, downloadCsv } from '../../core/ui/csv.util';
+import { type CsvColumn } from '../../core/ui/csv.util';
+import { CsvExportService } from '../../core/ui/csv-export.service';
 import { type ChartPoint, MiniChartComponent } from '../../core/ui/mini-chart.component';
 import { NotificationService } from '../../core/ui/notification.service';
 import { StorageService } from './storage.service';
@@ -301,6 +302,7 @@ function humanizeBytes(bytes: number): string {
   `,
 })
 export class StorageComponent implements OnInit {
+  private readonly _csv = inject(CsvExportService);
   private readonly _storage = inject(StorageService);
   private readonly _notify = inject(NotificationService);
   private readonly _destroyRef = inject(DestroyRef);
@@ -402,7 +404,7 @@ export class StorageComponent implements OnInit {
   }
 
   protected exportCsv(): void {
-    downloadCsv('files.csv', STORAGE_FILE_CSV_COLUMNS, this.files());
+    this._csv.download('admin-files', 'files.csv', STORAGE_FILE_CSV_COLUMNS, this.files());
   }
 
   protected download(file: AdminFileResponse): void {

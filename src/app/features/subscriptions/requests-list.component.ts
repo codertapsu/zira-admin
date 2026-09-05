@@ -12,7 +12,8 @@ import { RouterLink } from '@angular/router';
 
 import { catchError, of } from 'rxjs';
 
-import { type CsvColumn, downloadCsv } from '../../core/ui/csv.util';
+import { type CsvColumn } from '../../core/ui/csv.util';
+import { CsvExportService } from '../../core/ui/csv-export.service';
 import { ConfirmService } from '../../core/ui/confirm.service';
 import { NotificationService } from '../../core/ui/notification.service';
 import { fetchAllPages } from './paginate-all.util';
@@ -314,6 +315,7 @@ const CSV_COLUMNS: readonly CsvColumn<SubscriptionPurchaseRequestResponse>[] = [
   `,
 })
 export class RequestsListComponent implements OnInit {
+  private readonly _csv = inject(CsvExportService);
   private readonly _service = inject(SubscriptionsService);
   private readonly _confirm = inject(ConfirmService);
   private readonly _notify = inject(NotificationService);
@@ -369,7 +371,12 @@ export class RequestsListComponent implements OnInit {
   }
 
   protected exportCsv(): void {
-    downloadCsv('purchase-requests.csv', CSV_COLUMNS, this.requests());
+    this._csv.download(
+      'admin-purchase-requests',
+      'purchase-requests.csv',
+      CSV_COLUMNS,
+      this.requests(),
+    );
   }
 
   protected async copy(text: string): Promise<void> {

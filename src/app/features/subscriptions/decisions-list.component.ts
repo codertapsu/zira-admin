@@ -12,7 +12,8 @@ import { RouterLink } from '@angular/router';
 import { catchError, forkJoin, of } from 'rxjs';
 
 import type { CursorPage } from '../../core/api/models';
-import { type CsvColumn, downloadCsv } from '../../core/ui/csv.util';
+import { type CsvColumn } from '../../core/ui/csv.util';
+import { CsvExportService } from '../../core/ui/csv-export.service';
 import { SubscriptionsService } from './subscriptions.service';
 import type { SubscriptionPurchaseRequestResponse } from './subscriptions.models';
 
@@ -139,6 +140,7 @@ const CSV_COLUMNS: readonly CsvColumn<SubscriptionPurchaseRequestResponse>[] = [
   `,
 })
 export class DecisionsListComponent implements OnInit {
+  private readonly _csv = inject(CsvExportService);
   private readonly _service = inject(SubscriptionsService);
   private readonly _destroyRef = inject(DestroyRef);
 
@@ -173,7 +175,12 @@ export class DecisionsListComponent implements OnInit {
   }
 
   protected exportCsv(): void {
-    downloadCsv('subscription-decisions.csv', CSV_COLUMNS, this.decisions());
+    this._csv.download(
+      'admin-subscription-decisions',
+      'subscription-decisions.csv',
+      CSV_COLUMNS,
+      this.decisions(),
+    );
   }
 
   protected fetch(): void {

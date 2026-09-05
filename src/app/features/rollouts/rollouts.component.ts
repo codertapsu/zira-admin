@@ -14,7 +14,8 @@ import { catchError, forkJoin, map, of, switchMap } from 'rxjs';
 import type { FeatureFlag } from '../../core/api/models';
 import { FEATURE_FLAGS } from '../../core/api/models';
 import { ConfirmService } from '../../core/ui/confirm.service';
-import { type CsvColumn, downloadCsv } from '../../core/ui/csv.util';
+import { type CsvColumn } from '../../core/ui/csv.util';
+import { CsvExportService } from '../../core/ui/csv-export.service';
 import { MiniChartComponent } from '../../core/ui/mini-chart.component';
 import { NotificationService } from '../../core/ui/notification.service';
 import type { FeatureAdoption, ProductivityTrend } from '../insights/insights.models';
@@ -176,6 +177,7 @@ const ROLLOUT_CSV_COLUMNS: readonly CsvColumn<RolloutRow>[] = [
   `,
 })
 export class RolloutsComponent implements OnInit {
+  private readonly _csv = inject(CsvExportService);
   private readonly _rollouts = inject(RolloutsService);
   private readonly _confirm = inject(ConfirmService);
   private readonly _notify = inject(NotificationService);
@@ -218,7 +220,7 @@ export class RolloutsComponent implements OnInit {
   }
 
   protected exportCsv(): void {
-    downloadCsv('rollouts.csv', ROLLOUT_CSV_COLUMNS, this.rows());
+    this._csv.download('admin-rollouts', 'rollouts.csv', ROLLOUT_CSV_COLUMNS, this.rows());
   }
 
   protected fetch(): void {

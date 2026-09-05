@@ -13,7 +13,8 @@ import { RouterLink } from '@angular/router';
 
 import { catchError, of } from 'rxjs';
 
-import { type CsvColumn, downloadCsv } from '../../core/ui/csv.util';
+import { type CsvColumn } from '../../core/ui/csv.util';
+import { CsvExportService } from '../../core/ui/csv-export.service';
 import { fetchAllPages } from './paginate-all.util';
 import { SubscriptionsService } from './subscriptions.service';
 import {
@@ -231,6 +232,7 @@ const CSV_COLUMNS: readonly CsvColumn<AdminUserSubscriptionResponse>[] = [
   `,
 })
 export class SubscribersListComponent implements OnInit {
+  private readonly _csv = inject(CsvExportService);
   private readonly _service = inject(SubscriptionsService);
   private readonly _destroyRef = inject(DestroyRef);
 
@@ -288,7 +290,7 @@ export class SubscribersListComponent implements OnInit {
   }
 
   protected exportCsv(): void {
-    downloadCsv('subscribers.csv', CSV_COLUMNS, this.rows());
+    this._csv.download('admin-subscribers', 'subscribers.csv', CSV_COLUMNS, this.rows());
   }
 
   protected fetch(): void {

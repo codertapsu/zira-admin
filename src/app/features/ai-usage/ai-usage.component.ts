@@ -12,7 +12,8 @@ import { FormsModule } from '@angular/forms';
 
 import { catchError, of } from 'rxjs';
 
-import { downloadCsv, type CsvColumn } from '../../core/ui/csv.util';
+import { type CsvColumn } from '../../core/ui/csv.util';
+import { CsvExportService } from '../../core/ui/csv-export.service';
 import { defaultFrom, defaultTo, validateRange } from '../insights/insights-dates.util';
 import { AiUsageService } from './ai-usage.service';
 import type {
@@ -298,6 +299,7 @@ const PAGE_SIZE = 50;
   `,
 })
 export class AiUsageComponent implements OnInit {
+  private readonly _csv = inject(CsvExportService);
   private readonly _service = inject(AiUsageService);
   private readonly _destroyRef = inject(DestroyRef);
 
@@ -403,9 +405,13 @@ export class AiUsageComponent implements OnInit {
         value: (r) => r.estimatedCostUsd,
       },
     ];
-    downloadCsv(`ai-usage-summary-${this.fromDate()}_${this.toDate()}.csv`, columns, [
-      ...(this.summary()?.rows ?? []),
-    ]);
+    this._csv.download(
+      'admin-ai-usage-by-feature',
+      `ai-usage-summary-${this.fromDate()}_${this.toDate()}.csv`,
+      columns,
+      [...(this.summary()?.rows ?? [])],
+      { fromDate: this.fromDate(), toDate: this.toDate() },
+    );
   }
 
   protected exportRows(): void {
@@ -429,7 +435,13 @@ export class AiUsageComponent implements OnInit {
       },
       { key: 'userId', label: 'User ID', value: (r) => r.userId },
     ];
-    downloadCsv(`ai-usage-calls-${this.fromDate()}_${this.toDate()}.csv`, columns, this.rows());
+    this._csv.download(
+      'admin-ai-usage-by-model',
+      `ai-usage-calls-${this.fromDate()}_${this.toDate()}.csv`,
+      columns,
+      this.rows(),
+      { fromDate: this.fromDate(), toDate: this.toDate() },
+    );
   }
 
   /**

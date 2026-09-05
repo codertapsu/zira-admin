@@ -12,7 +12,8 @@ import { RouterLink } from '@angular/router';
 
 import { catchError, of } from 'rxjs';
 
-import { type CsvColumn, downloadCsv } from '../../core/ui/csv.util';
+import { type CsvColumn } from '../../core/ui/csv.util';
+import { CsvExportService } from '../../core/ui/csv-export.service';
 import { ExportsService } from './exports.service';
 import type { ExportAuditLogResponse } from './exports.models';
 
@@ -187,6 +188,7 @@ const EXPORT_AUDIT_CSV_COLUMNS: readonly CsvColumn<ExportAuditLogResponse>[] = [
   `,
 })
 export class ExportsComponent implements OnInit {
+  private readonly _csv = inject(CsvExportService);
   private readonly _exports = inject(ExportsService);
   private readonly _destroyRef = inject(DestroyRef);
 
@@ -248,7 +250,12 @@ export class ExportsComponent implements OnInit {
   }
 
   protected exportCsv(): void {
-    downloadCsv('export-audit.csv', EXPORT_AUDIT_CSV_COLUMNS, this.items());
+    this._csv.download(
+      'admin-export-audit',
+      'export-audit.csv',
+      EXPORT_AUDIT_CSV_COLUMNS,
+      this.items(),
+    );
   }
 
   private _fetch(cursor?: string): void {
