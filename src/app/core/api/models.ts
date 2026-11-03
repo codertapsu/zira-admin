@@ -46,7 +46,8 @@ export type FeatureFlag =
   | 'project_chatbot_native'
   | 'project_chatbot_cross'
   | 'telegram_project_chatbot_native'
-  | 'telegram_project_chatbot_cross';
+  | 'telegram_project_chatbot_cross'
+  | 'zalo_own_bot';
 
 export const FEATURE_FLAGS: readonly FeatureFlag[] = [
   'ai_assistant',
@@ -66,6 +67,7 @@ export const FEATURE_FLAGS: readonly FeatureFlag[] = [
   'project_chatbot_cross',
   'telegram_project_chatbot_native',
   'telegram_project_chatbot_cross',
+  'zalo_own_bot',
 ];
 
 export type SupportedLanguage = 'default' | 'en' | 'vi' | 'ru';

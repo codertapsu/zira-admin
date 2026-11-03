@@ -45,6 +45,9 @@ export const FLAG_EVENT_PREFIXES: Readonly<Record<FeatureFlag, readonly string[]
   project_chatbot_cross: [],
   telegram_project_chatbot_native: [],
   telegram_project_chatbot_cross: [],
+  // The own-bot sheet emits its own `zalo_own_bot_*` family, so a prefix join
+  // separates it from the system bot's `project_chatbot_*` series cleanly.
+  zalo_own_bot: ['zalo_own_bot_'],
 };
 
 /**
